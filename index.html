@@ -296,6 +296,13 @@
         // --- Payee Management (Page 2) ---
         function fetchPayees() {
             showLoading();
+             // Fix: Check if google.script.run is available before calling it.
+            if (typeof google === 'undefined' || typeof google.script === 'undefined' || typeof google.script.run === 'undefined') {
+                console.error("google.script.run is not available. This app must be run from a Google Apps Script deployment.");
+                showError("ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้ กรุณาเปิดแอปผ่านลิงก์ที่ถูกต้อง");
+                Swal.close();
+                return;
+            }
             google.script.run
                 .withSuccessHandler(data => {
                     allPayees = data.sort((a,b) => a.name.localeCompare(b.name, 'th'));
@@ -337,6 +344,11 @@
 
         document.getElementById('payeeForm').addEventListener('submit', function(e) {
             e.preventDefault();
+            // Fix: Check for google object
+            if (typeof google === 'undefined' || !google.script || !google.script.run) {
+                showError("ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้ กรุณาตรวจสอบว่าคุณกำลังใช้งานผ่านลิงก์ของเว็บแอปที่ถูกต้อง");
+                return;
+            }
             const editRowIndex = document.getElementById('payeeEditRowIndex').value;
             const payee = {
                 name: document.getElementById('payeeName').value.trim(),
@@ -410,6 +422,11 @@
                 cancelButtonText: 'ยกเลิก'
             }).then((result) => {
                 if (result.isConfirmed) {
+                    // Fix: Check for google object
+                    if (typeof google === 'undefined' || !google.script || !google.script.run) {
+                        showError("ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้ กรุณาตรวจสอบว่าคุณกำลังใช้งานผ่านลิงก์ของเว็บแอปที่ถูกต้อง");
+                        return;
+                    }
                     showLoading('กำลังลบข้อมูล...');
                     google.script.run
                         .withSuccessHandler(res => {
@@ -429,6 +446,13 @@
         // --- Transaction Management (Page 3) ---
         function fetchTransactions() {
             showLoading();
+            // Fix: Check if google.script.run is available before calling it.
+            if (typeof google === 'undefined' || typeof google.script === 'undefined' || typeof google.script.run === 'undefined') {
+                console.error("google.script.run is not available. This app must be run from a Google Apps Script deployment.");
+                showError("ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้ กรุณาเปิดแอปผ่านลิงก์ที่ถูกต้อง");
+                Swal.close();
+                return;
+            }
             google.script.run
                 .withSuccessHandler(data => {
                     allTransactions = data.sort((a,b) => new Date(b.paymentDate) - new Date(a.paymentDate));
@@ -541,6 +565,11 @@
         
         document.getElementById('transactionForm').addEventListener('submit', function(e) {
             e.preventDefault();
+            // Fix: Check for google object
+            if (typeof google === 'undefined' || !google.script || !google.script.run) {
+                showError("ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้ กรุณาตรวจสอบว่าคุณกำลังใช้งานผ่านลิงก์ของเว็บแอปที่ถูกต้อง");
+                return;
+            }
             const selectedPayee = allPayees.find(p => p.taxId === document.getElementById('txPayeeSelect').value);
             if (!selectedPayee) {
                 showError('กรุณาเลือกผู้ถูกหักภาษี');
@@ -588,6 +617,11 @@
                 cancelButtonText: 'ยกเลิก'
             }).then((result) => {
                 if (result.isConfirmed) {
+                    // Fix: Check for google object
+                    if (typeof google === 'undefined' || !google.script || !google.script.run) {
+                        showError("ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้ กรุณาตรวจสอบว่าคุณกำลังใช้งานผ่านลิงก์ของเว็บแอปที่ถูกต้อง");
+                        return;
+                    }
                     showLoading('กำลังลบรายการ...');
                     google.script.run
                         .withSuccessHandler(res => {
