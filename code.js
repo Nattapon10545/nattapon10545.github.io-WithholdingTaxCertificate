@@ -1,14 +1,13 @@
-/**
- * @OnlyCurrentDoc
- *
- * The above comment directs App Script to limit the scope of file
- * access for this script to only the current document.
- */
+// --- Configuration ---
+// ระบุ ID ของ Google Sheet ที่ต้องการให้สคริปต์นี้ทำงานด้วย
+const SPREADSHEET_ID = '1Wka6GisqNZhwh97mRo8-dG1qLM2mCvFhpJNGB7zcL3c';
+
+// ชื่อชีตสำหรับเก็บข้อมูล
 const PAYEES_SHEET_NAME = 'Payees'; // ชื่อชีตสำหรับเก็บข้อมูลผู้ถูกหักภาษี
 const TRANSACTIONS_SHEET_NAME = 'Transactions'; // ชื่อชีตสำหรับเก็บรายการหักภาษี
 
 /**
- * @description Serves the HTML file for the web app.
+ * @description ให้บริการไฟล์ HTML สำหรับเว็บแอป
  * @param {object} e The event parameter.
  * @returns {HtmlOutput} The HTML output for the web app.
  */
@@ -19,14 +18,17 @@ function doGet(e) {
 }
 
 /**
- * @description Gets a sheet by name, creating it with headers if it doesn't exist.
+ * @description ดึงชีตด้วยชื่อจาก Spreadsheet ที่ระบุ หรือสร้างขึ้นใหม่พร้อมหัวตารางหากยังไม่มี
  * @param {string} sheetName The name of the sheet.
  * @param {Array<string>} headers An array of header strings.
  * @returns {Sheet} The Google Sheet object.
  */
 function getSheet(sheetName, headers) {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  // ใช้ .openById() เพื่อเปิดไฟล์ Spreadsheet ตาม ID ที่ระบุไว้ด้านบน
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
   let sheet = ss.getSheetByName(sheetName);
+  
+  // หากไม่พบชีต ให้สร้างชีตใหม่พร้อมกำหนดหัวตาราง
   if (!sheet) {
     sheet = ss.insertSheet(sheetName);
     sheet.appendRow(headers);
@@ -37,7 +39,7 @@ function getSheet(sheetName, headers) {
 }
 
 /**
- * @description Converts sheet data (2D array) to an array of objects.
+ * @description แปลงข้อมูลจากชีต (Array 2 มิติ) ให้อยู่ในรูปแบบ Array ของ Object
  * @param {Array<Array<any>>} data The 2D array from getValues().
  * @returns {Array<object>} An array of objects.
  */
@@ -49,7 +51,7 @@ function sheetDataToObjects(data) {
     headers.forEach((header, i) => {
       obj[header] = row[i];
     });
-    obj.rowIndex = index + 2; // Store original row index for easy updates/deletes
+    obj.rowIndex = index + 2; // เก็บเลขแถวเดิมไว้สำหรับแก้ไข/ลบข้อมูล
     return obj;
   });
 }
@@ -57,7 +59,7 @@ function sheetDataToObjects(data) {
 // --- Payee Functions ---
 
 /**
- * @description Retrieves all payees from the spreadsheet.
+ * @description ดึงข้อมูลผู้ถูกหักภาษีทั้งหมด
  * @returns {Array<object>} An array of payee objects.
  */
 function getPayees() {
@@ -73,7 +75,7 @@ function getPayees() {
 }
 
 /**
- * @description Adds a new payee to the sheet.
+ * @description เพิ่มข้อมูลผู้ถูกหักภาษีใหม่
  * @param {object} payee The payee object to add.
  * @returns {object} A success message.
  */
@@ -81,7 +83,7 @@ function addPayee(payee) {
   try {
     const headers = ['id', 'name', 'type', 'taxId', 'address', 'createdAt'];
     const sheet = getSheet(PAYEES_SHEET_NAME, headers);
-    const newId = new Date().getTime().toString(); // Simple unique ID
+    const newId = new Date().getTime().toString();
     const newRow = [newId, payee.name, payee.type, payee.taxId, payee.address, new Date()];
     sheet.appendRow(newRow);
     return { status: 'success', message: 'เพิ่มข้อมูลผู้ถูกหักภาษีสำเร็จ' };
@@ -92,7 +94,7 @@ function addPayee(payee) {
 }
 
 /**
- * @description Deletes a payee from the sheet.
+ * @description ลบข้อมูลผู้ถูกหักภาษี
  * @param {number} rowIndex The row number to delete.
  * @returns {object} A success message.
  */
@@ -101,14 +103,15 @@ function deletePayee(rowIndex) {
     const sheet = getSheet(PAYEES_SHEET_NAME, []);
     sheet.deleteRow(rowIndex);
     return { status: 'success', message: 'ลบข้อมูลสำเร็จ' };
-  } catch (error) {
+  } catch (error)
+ {
     console.error("Error in deletePayee:", error);
     return { status: 'error', message: error.toString() };
   }
 }
 
 /**
- * @description Updates an existing payee's data.
+ * @description อัปเดตข้อมูลผู้ถูกหักภาษี
  * @param {object} payee The payee object with updated information, including rowIndex.
  * @returns {object} A success status object.
  */
@@ -128,7 +131,7 @@ function updatePayee(payee) {
 // --- Transaction Functions ---
 
 /**
- * @description Retrieves all withholding tax transactions.
+ * @description ดึงข้อมูลรายการหักภาษีทั้งหมด
  * @returns {Array<object>} An array of transaction objects.
  */
 function getTransactions() {
@@ -141,7 +144,7 @@ function getTransactions() {
     const sheet = getSheet(TRANSACTIONS_SHEET_NAME, headers);
     const data = sheet.getDataRange().getValues();
     const transactions = sheetDataToObjects(data);
-    // Convert date objects back to strings for proper JSON serialization
+    
     return transactions.map(t => {
       t.paymentDate = t.paymentDate instanceof Date ? t.paymentDate.toISOString().split('T')[0] : t.paymentDate;
       t.createdAt = t.createdAt instanceof Date ? t.createdAt.toISOString() : t.createdAt;
@@ -154,7 +157,7 @@ function getTransactions() {
 }
 
 /**
- * @description Adds a new transaction to the sheet.
+ * @description เพิ่มรายการหักภาษีใหม่
  * @param {object} tx The transaction object to add.
  * @returns {object} A success message.
  */
@@ -181,7 +184,7 @@ function addTransaction(tx) {
 }
 
 /**
- * @description Deletes a transaction from the sheet.
+ * @description ลบรายการหักภาษี
  * @param {number} rowIndex The row number to delete.
  * @returns {object} A success message.
  */
