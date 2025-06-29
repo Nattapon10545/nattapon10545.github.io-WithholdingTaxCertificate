@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบบันทึกภาษีหัก ณ ที่จ่าย</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- SweetAlert2 -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <style>
+        /* Custom Styles */
+        body {
+            font-family: 'Kanit', sans-serif;
+            background-color: #FFFBEB; /* Pastel Yellow */
+        }
+        @import url('https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;700&display=swap');
+        
+        /* Custom scrollbar for better aesthetics */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #D4B254; /* A darker yellow */
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #BF9B30;
+        }
+        .page {
+            display: none;
+        }
+        .page.active {
+            display: block;
+        }
+        .card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.12);
+        }
+    </style>
+</head>
+<body class="text-gray-700">
+
+    <div class="container mx-auto p-4 md:p-8">
+
+        <!-- Header and Navigation -->
+        <header class="mb-8">
+            <h1 class="text-3xl md:text-4xl font-bold text-center text-yellow-800 mb-4">ระบบบันทึกภาษีหัก ณ ที่จ่าย</h1>
+            <nav class="flex justify-center bg-white rounded-full shadow-md p-2 max-w-lg mx-auto">
+                <button onclick="showPage('summaryPage')" class="nav-btn flex-1 text-center py-2 px-4 rounded-full transition-colors duration-300">หน้าสรุป</button>
+                <button onclick="showPage('addPayeePage')" class="nav-btn flex-1 text-center py-2 px-4 rounded-full transition-colors duration-300">จัดการผู้ถูกหักภาษี</button>
+                <button onclick="showPage('addTransactionPage')" class="nav-btn flex-1 text-center py-2 px-4 rounded-full transition-colors duration-300">เพิ่มรายการหักภาษี</button>
+            </nav>
+        </header>
+
+        <main>
+            <!-- Page 1: Summary of All Transactions -->
+            <div id="summaryPage" class="page">
+                <div class="card p-6">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-2xl font-semibold">สรุปรายการหักภาษีทั้งหมด</h2>
+                        <div class="flex items-center space-x-2">
+                            <label for="summaryMonthFilter" class="text-sm">กรองตามเดือน:</label>
+                            <input type="month" id="summaryMonthFilter" class="p-2 border rounded-md">
+                        </div>
+                    </div>
+                    <div id="summaryContainer" class="space-y-4">
+                        <!-- Transaction cards will be injected here -->
+                    </div>
+                    <div id="summaryPagination" class="flex justify-between items-center mt-6">
+                        <!-- Pagination controls will be injected here -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Page 2: Add/Manage Payees -->
+            <div id="addPayeePage" class="page">
+                <div class="grid md:grid-cols-3 gap-8">
+                    <div class="md:col-span-1 card p-6">
+                        <h2 class="text-2xl font-semibold mb-4" id="payeeFormTitle">เพิ่มผู้ถูกหักภาษี</h2>
+                        <form id="payeeForm" class="space-y-4">
+                             <input type="hidden" id="payeeEditRowIndex">
+                            <div>
+                                <label for="payeeName" class="block mb-1 font-medium">ชื่อ-สกุล / ชื่อบริษัท</label>
+                                <input type="text" id="payeeName" class="w-full p-2 border rounded-md" required>
+                            </div>
+                            <div>
+                                <label for="payeeType" class="block mb-1 font-medium">ประเภท</label>
+                                <select id="payeeType" class="w-full p-2 border rounded-md" required>
+                                    <option value="บุคคลธรรมดา">บุคคลธรรมดา</option>
+                                    <option value="นิติบุคคล">นิติบุคคล</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label for="payeeTaxId" class="block mb-1 font-medium">เลขประจำตัวผู้เสียภาษี</label>
+                                <input type="text" id="payeeTaxId" class="w-full p-2 border rounded-md" required>
+                            </div>
+                            <div>
+                                <label for="payeeAddress" class="block mb-1 font-medium">ที่อยู่</label>
+                                <textarea id="payeeAddress" rows="3" class="w-full p-2 border rounded-md" required></textarea>
+                            </div>
+                            <div class="flex space-x-2">
+                                <button type="submit" class="w-full bg-yellow-500 text-white py-2 px-4 rounded-md hover:bg-yellow-600 transition">บันทึกข้อมูล</button>
+                                <button type="button" id="cancelPayeeEditBtn" onclick="resetPayeeForm()" class="w-full bg-gray-300 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-400 transition hidden">ยกเลิก</button>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="md:col-span-2 card p-6">
+                        <h2 class="text-2xl font-semibold mb-4">รายชื่อผู้ถูกหักภาษี</h2>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left">
+                                <thead class="bg-yellow-100">
+                                    <tr>
+                                        <th class="p-3">ชื่อ</th>
+                                        <th class="p-3">ประเภท</th>
+                                        <th class="p-3">เลขประจำตัว</th>
+                                        <th class="p-3">การกระทำ</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="payeeTableBody">
+                                    <!-- Payee rows will be injected here -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Page 3: Add Tax Transaction -->
+            <div id="addTransactionPage" class="page">
+                <div class="grid md:grid-cols-3 gap-8">
+                     <div class="md:col-span-1 card p-6">
+                        <h2 class="text-2xl font-semibold mb-4">เพิ่มรายการหักภาษี</h2>
+                        <form id="transactionForm" class="space-y-4">
+                            <div>
+                                <label for="txPayeeSelect" class="block mb-1 font-medium">เลือกผู้ถูกหักภาษี</label>
+                                <select id="txPayeeSelect" class="w-full p-2 border rounded-md" required>
+                                    <option value="">-- กรุณาเลือก --</option>
+                                </select>
+                            </div>
+                            <div class="p-3 bg-gray-50 rounded-md space-y-1 text-sm">
+                                <div><strong>ประเภท:</strong> <span id="txPayeeType">N/A</span></div>
+                                <div><strong>เลขผู้เสียภาษี:</strong> <span id="txPayeeTaxId">N/A</span></div>
+                                <div><strong>ที่อยู่:</strong> <span id="txPayeeAddress">N/A</span></div>
+                            </div>
+                             <div>
+                                <label for="txDescription" class="block mb-1 font-medium">รายละเอียดการจ่าย</label>
+                                <input type="text" id="txDescription" class="w-full p-2 border rounded-md" placeholder="เช่น ค่าบริการ, ค่าเช่า" required>
+                            </div>
+                             <div>
+                                <label for="txTotalAmount" class="block mb-1 font-medium">จำนวนเงินที่จ่าย (บาท)</label>
+                                <input type="number" id="txTotalAmount" step="0.01" class="w-full p-2 border rounded-md" required>
+                            </div>
+                             <div>
+                                <label for="txPaymentDate" class="block mb-1 font-medium">วันที่จ่าย</label>
+                                <input type="date" id="txPaymentDate" class="w-full p-2 border rounded-md" required>
+                            </div>
+                            <div class="p-3 bg-yellow-50 rounded-md space-y-1 text-sm">
+                                <div><strong>ยอดหัก 1%:</strong> <span id="txWhtAmount">0.00</span> บาท</div>
+                                <div><strong>ยอดจ่ายจริง:</strong> <span id="txNetAmount">0.00</span> บาท</div>
+                            </div>
+                            <button type="submit" class="w-full bg-yellow-500 text-white py-2 px-4 rounded-md hover:bg-yellow-600 transition">บันทึกรายการ</button>
+                        </form>
+                    </div>
+                    <div class="md:col-span-2 card p-6">
+                        <div class="flex justify-between items-center mb-4">
+                            <h2 class="text-2xl font-semibold">ตารางรายการหักภาษี</h2>
+                             <div class="flex items-center space-x-2">
+                                <label for="txMonthFilter" class="text-sm">กรองตามเดือน:</label>
+                                <input type="month" id="txMonthFilter" class="p-2 border rounded-md">
+                            </div>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left">
+                                <thead class="bg-yellow-100">
+                                    <tr>
+                                        <th class="p-3">วันที่</th>
+                                        <th class="p-3">ผู้รับเงิน</th>
+                                        <th class="p-3">รายละเอียด</th>
+                                        <th class="p-3 text-right">ยอดหัก (บาท)</th>
+                                        <th class="p-3">การกระทำ</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="transactionTableBody">
+                                    <!-- Transaction rows will be injected here -->
+                                </tbody>
+                            </table>
+                        </div>
+                         <div id="transactionPagination" class="flex justify-between items-center mt-6">
+                            <!-- Pagination controls will be injected here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+
+    </div>
+
+    <script>
+        // --- Global State ---
+        let allPayees = [];
+        let allTransactions = [];
+        let filteredTransactions = [];
+        let summaryCurrentPage = 1;
+        let transactionCurrentPage = 1;
+        const ITEMS_PER_PAGE = 10;
+        
+        // --- Utility Functions ---
+        function showLoading(title = 'กำลังโหลดข้อมูล...') {
+            Swal.fire({
+                title: title,
+                didOpen: () => {
+                    Swal.showLoading();
+                },
+                allowOutsideClick: false,
+                allowEscapeKey: false
+            });
+        }
+
+        function showSuccess(message) {
+            Swal.fire({
+                icon: 'success',
+                title: message,
+                showConfirmButton: false,
+                timer: 1500
+            });
+        }
+
+        function showError(message) {
+            Swal.fire({
+                icon: 'error',
+                title: 'เกิดข้อผิดพลาด',
+                text: message,
+            });
+        }
+
+        // --- Page Navigation ---
+        const pages = document.querySelectorAll('.page');
+        const navBtns = document.querySelectorAll('.nav-btn');
+        function showPage(pageId) {
+            pages.forEach(page => page.classList.remove('active'));
+            document.getElementById(pageId).classList.add('active');
+
+            navBtns.forEach(btn => {
+                btn.classList.remove('bg-yellow-400', 'text-white', 'font-semibold');
+                if(btn.getAttribute('onclick').includes(pageId)){
+                   btn.classList.add('bg-yellow-400', 'text-white', 'font-semibold');
+                }
+            });
+
+            // Initial data load for each page
+            if (pageId === 'summaryPage') renderSummary(summaryCurrentPage);
+            if (pageId === 'addPayeePage') renderPayeeTable();
+            if (pageId === 'addTransactionPage') {
+                populatePayeeSelect();
+                renderTransactionTable(transactionCurrentPage);
+            }
+        }
+
+        // --- Tax Calculation Logic ---
+        function calculateWHT(amount, type) {
+            amount = parseFloat(amount);
+            let wht = 0;
+
+            if (type === 'บุคคลธรรมดา' && amount >= 10000) {
+                wht = amount * 0.01;
+            } else if (type === 'นิติบุคคล' && amount >= 500) {
+                const baseAmount = (amount * 100) / 107;
+                const rawWht = baseAmount * 0.01;
+                // Custom rounding rule
+                wht = Math.round(rawWht * 100) / 100; // Standard rounding is simpler and often acceptable.
+                
+                // Detailed rounding as per request:
+                const valTimes1000 = Math.floor(rawWht * 1000);
+                const thirdDecimal = valTimes1000 % 10;
+                let whtRounded = Math.floor(rawWht * 100) / 100;
+                if (thirdDecimal >= 5) {
+                    whtRounded += 0.01;
+                }
+                wht = whtRounded;
+            }
+            
+            return parseFloat(wht.toFixed(2));
+        }
+
+        // --- Payee Management (Page 2) ---
+        function fetchPayees() {
+            showLoading();
+            google.script.run
+                .withSuccessHandler(data => {
+                    allPayees = data.sort((a,b) => a.name.localeCompare(b.name, 'th'));
+                    renderPayeeTable();
+                    populatePayeeSelect();
+                    Swal.close();
+                })
+                .withFailureHandler(err => {
+                    showError(err.message);
+                })
+                .getPayees();
+        }
+
+        function renderPayeeTable() {
+            const tbody = document.getElementById('payeeTableBody');
+            tbody.innerHTML = '';
+            if (allPayees.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" class="text-center p-4">ยังไม่มีข้อมูลผู้ถูกหักภาษี</td></tr>';
+                return;
+            }
+            allPayees.forEach(p => {
+                const tagClass = p.type === 'นิติบุคคล' ? 'bg-purple-200 text-purple-800' : 'bg-green-200 text-green-800';
+                const row = `
+                    <tr class="border-b hover:bg-yellow-50">
+                        <td class="p-3">${p.name}</td>
+                        <td class="p-3">
+                            <span class="px-2 py-1 text-xs font-semibold rounded-full ${tagClass}">${p.type}</span>
+                        </td>
+                        <td class="p-3">${p.taxId}</td>
+                        <td class="p-3">
+                            <button onclick="editPayee('${p.rowIndex}')" class="text-blue-500 hover:underline mr-2">แก้ไข</button>
+                            <button onclick="deletePayee('${p.rowIndex}', '${p.name}')" class="text-red-500 hover:underline">ลบ</button>
+                        </td>
+                    </tr>
+                `;
+                tbody.innerHTML += row;
+            });
+        }
+
+        document.getElementById('payeeForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const editRowIndex = document.getElementById('payeeEditRowIndex').value;
+            const payee = {
+                name: document.getElementById('payeeName').value.trim(),
+                type: document.getElementById('payeeType').value,
+                taxId: document.getElementById('payeeTaxId').value.trim(),
+                address: document.getElementById('payeeAddress').value.trim(),
+            };
+            
+            showLoading(editRowIndex ? 'กำลังแก้ไขข้อมูล...' : 'กำลังเพิ่มข้อมูล...');
+
+            if (editRowIndex) {
+                 payee.rowIndex = parseInt(editRowIndex);
+                 google.script.run
+                    .withSuccessHandler(res => {
+                        if(res.status === 'success'){
+                            showSuccess(res.message);
+                            fetchPayees();
+                            resetPayeeForm();
+                        } else {
+                            showError(res.message);
+                        }
+                    })
+                    .withFailureHandler(err => showError(err.message))
+                    .updatePayee(payee);
+            } else {
+                 google.script.run
+                    .withSuccessHandler(res => {
+                         if(res.status === 'success'){
+                            showSuccess(res.message);
+                            fetchPayees();
+                            this.reset();
+                        } else {
+                            showError(res.message);
+                        }
+                    })
+                    .withFailureHandler(err => showError(err.message))
+                    .addPayee(payee);
+            }
+        });
+
+        function editPayee(rowIndex) {
+            const payee = allPayees.find(p => p.rowIndex == rowIndex);
+            if (!payee) return;
+
+            document.getElementById('payeeFormTitle').innerText = 'แก้ไขข้อมูลผู้ถูกหักภาษี';
+            document.getElementById('payeeEditRowIndex').value = payee.rowIndex;
+            document.getElementById('payeeName').value = payee.name;
+            document.getElementById('payeeType').value = payee.type;
+            document.getElementById('payeeTaxId').value = payee.taxId;
+            document.getElementById('payeeAddress').value = payee.address;
+            document.getElementById('cancelPayeeEditBtn').classList.remove('hidden');
+            window.scrollTo(0, 0);
+        }
+
+        function resetPayeeForm() {
+            document.getElementById('payeeFormTitle').innerText = 'เพิ่มผู้ถูกหักภาษี';
+            document.getElementById('payeeForm').reset();
+            document.getElementById('payeeEditRowIndex').value = '';
+            document.getElementById('cancelPayeeEditBtn').classList.add('hidden');
+        }
+        
+        function deletePayee(rowIndex, name) {
+            Swal.fire({
+                title: `แน่ใจหรือไม่ที่จะลบ "${name}"?`,
+                text: "การกระทำนี้ไม่สามารถย้อนกลับได้!",
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#d33',
+                cancelButtonColor: '#3085d6',
+                confirmButtonText: 'ใช่, ลบเลย!',
+                cancelButtonText: 'ยกเลิก'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    showLoading('กำลังลบข้อมูล...');
+                    google.script.run
+                        .withSuccessHandler(res => {
+                            if(res.status === 'success'){
+                                showSuccess(res.message);
+                                fetchPayees();
+                            } else {
+                                showError(res.message);
+                            }
+                        })
+                        .withFailureHandler(err => showError(err.message))
+                        .deletePayee(parseInt(rowIndex));
+                }
+            })
+        }
+
+        // --- Transaction Management (Page 3) ---
+        function fetchTransactions() {
+            showLoading();
+            google.script.run
+                .withSuccessHandler(data => {
+                    allTransactions = data.sort((a,b) => new Date(b.paymentDate) - new Date(a.paymentDate));
+                    applyFiltersAndRender();
+                    Swal.close();
+                })
+                .withFailureHandler(err => {
+                    showError(err.message);
+                })
+                .getTransactions();
+        }
+        
+        function applyFiltersAndRender() {
+            const monthFilterValue = document.getElementById('txMonthFilter').value;
+            const summaryMonthFilterValue = document.getElementById('summaryMonthFilter').value;
+
+            let filterForTxPage = allTransactions;
+            if (monthFilterValue) {
+                filterForTxPage = allTransactions.filter(tx => tx.paymentDate.startsWith(monthFilterValue));
+            }
+
+            let filterForSummaryPage = allTransactions;
+             if (summaryMonthFilterValue) {
+                filterForSummaryPage = allTransactions.filter(tx => tx.paymentDate.startsWith(summaryMonthFilterValue));
+            }
+
+            filteredTransactions = allTransactions; // for general use
+            
+            renderTransactionTable(1, filterForTxPage); // Reset to page 1
+            renderSummary(1, filterForSummaryPage);
+        }
+        
+        document.getElementById('txMonthFilter').addEventListener('change', applyFiltersAndRender);
+        document.getElementById('summaryMonthFilter').addEventListener('change', applyFiltersAndRender);
+
+
+        function renderTransactionTable(page, data = filteredTransactions) {
+            transactionCurrentPage = page;
+            const tbody = document.getElementById('transactionTableBody');
+            tbody.innerHTML = '';
+
+            const startIndex = (page - 1) * ITEMS_PER_PAGE;
+            const endIndex = startIndex + ITEMS_PER_PAGE;
+            const paginatedData = data.slice(startIndex, endIndex);
+
+            if (paginatedData.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center p-4">ยังไม่มีรายการ</td></tr>';
+                document.getElementById('transactionPagination').innerHTML = '';
+                return;
+            }
+
+            paginatedData.forEach(tx => {
+                const row = `
+                    <tr class="border-b hover:bg-yellow-50">
+                        <td class="p-3">${new Date(tx.paymentDate).toLocaleDateString('th-TH')}</td>
+                        <td class="p-3">${tx.payeeName}</td>
+                        <td class="p-3">${tx.description}</td>
+                        <td class="p-3 text-right">${parseFloat(tx.whtAmount).toFixed(2)}</td>
+                        <td class="p-3">
+                            <button onclick="deleteTransaction('${tx.rowIndex}', '${tx.payeeName}')" class="text-red-500 hover:underline">ลบ</button>
+                        </td>
+                    </tr>
+                `;
+                tbody.innerHTML += row;
+            });
+
+            renderPagination('transactionPagination', page, data.length, 'renderTransactionTable');
+        }
+        
+        function populatePayeeSelect() {
+            const select = document.getElementById('txPayeeSelect');
+            const currentValue = select.value;
+            select.innerHTML = '<option value="">-- กรุณาเลือก --</option>';
+            allPayees.forEach(p => {
+                select.innerHTML += `<option value="${p.taxId}">${p.name}</option>`;
+            });
+            select.value = currentValue;
+        }
+
+        document.getElementById('txPayeeSelect').addEventListener('change', function() {
+            const selectedTaxId = this.value;
+            const payee = allPayees.find(p => p.taxId === selectedTaxId);
+            if (payee) {
+                document.getElementById('txPayeeType').textContent = payee.type;
+                document.getElementById('txPayeeTaxId').textContent = payee.taxId;
+                document.getElementById('txPayeeAddress').textContent = payee.address;
+            } else {
+                document.getElementById('txPayeeType').textContent = 'N/A';
+                document.getElementById('txPayeeTaxId').textContent = 'N/A';
+                document.getElementById('txPayeeAddress').textContent = 'N/A';
+            }
+            updateTransactionCalculation();
+        });
+
+        document.getElementById('txTotalAmount').addEventListener('input', updateTransactionCalculation);
+        
+        function updateTransactionCalculation() {
+             const payee = allPayees.find(p => p.taxId === document.getElementById('txPayeeSelect').value);
+             const amount = document.getElementById('txTotalAmount').value;
+             if(payee && amount){
+                 const wht = calculateWHT(amount, payee.type);
+                 const net = parseFloat(amount) - wht;
+                 document.getElementById('txWhtAmount').textContent = wht.toFixed(2);
+                 document.getElementById('txNetAmount').textContent = net.toFixed(2);
+             } else {
+                 document.getElementById('txWhtAmount').textContent = '0.00';
+                 document.getElementById('txNetAmount').textContent = '0.00';
+             }
+        }
+        
+        document.getElementById('transactionForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const selectedPayee = allPayees.find(p => p.taxId === document.getElementById('txPayeeSelect').value);
+            if (!selectedPayee) {
+                showError('กรุณาเลือกผู้ถูกหักภาษี');
+                return;
+            }
+            const totalAmount = parseFloat(document.getElementById('txTotalAmount').value);
+            const whtAmount = calculateWHT(totalAmount, selectedPayee.type);
+
+            const transaction = {
+                payeeName: selectedPayee.name,
+                payeeTaxId: selectedPayee.taxId,
+                payeeAddress: selectedPayee.address,
+                payeeType: selectedPayee.type,
+                description: document.getElementById('txDescription').value.trim(),
+                paymentDate: document.getElementById('txPaymentDate').value,
+                totalAmount: totalAmount,
+                whtAmount: whtAmount,
+                netAmount: totalAmount - whtAmount
+            };
+
+            showLoading('กำลังบันทึกรายการ...');
+            google.script.run
+                .withSuccessHandler(res => {
+                    if (res.status === 'success') {
+                        showSuccess(res.message);
+                        fetchTransactions();
+                        this.reset();
+                        updateTransactionCalculation();
+                    } else {
+                        showError(res.message);
+                    }
+                })
+                .withFailureHandler(err => showError(err.message))
+                .addTransaction(transaction);
+        });
+
+        function deleteTransaction(rowIndex, name) {
+            Swal.fire({
+                title: `แน่ใจหรือไม่ที่จะลบรายการของ "${name}"?`,
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#d33',
+                cancelButtonColor: '#3085d6',
+                confirmButtonText: 'ใช่, ลบเลย!',
+                cancelButtonText: 'ยกเลิก'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    showLoading('กำลังลบรายการ...');
+                    google.script.run
+                        .withSuccessHandler(res => {
+                            if(res.status === 'success'){
+                                showSuccess(res.message);
+                                fetchTransactions();
+                            } else {
+                                showError(res.message);
+                            }
+                        })
+                        .withFailureHandler(err => showError(err.message))
+                        .deleteTransaction(parseInt(rowIndex));
+                }
+            })
+        }
+
+        // --- Summary Page (Page 1) ---
+        function renderSummary(page, data = filteredTransactions) {
+            summaryCurrentPage = page;
+            const container = document.getElementById('summaryContainer');
+            container.innerHTML = '';
+            
+            const startIndex = (page - 1) * ITEMS_PER_PAGE;
+            const endIndex = startIndex + ITEMS_PER_PAGE;
+            const paginatedData = data.slice(startIndex, endIndex);
+
+            if (paginatedData.length === 0) {
+                container.innerHTML = '<div class="text-center p-8 bg-gray-50 rounded-lg">ไม่พบข้อมูลรายการหักภาษี</div>';
+                document.getElementById('summaryPagination').innerHTML = '';
+                return;
+            }
+
+            paginatedData.forEach(tx => {
+                const card = `
+                <div class="card p-4 grid grid-cols-1 md:grid-cols-5 gap-4 items-center">
+                    <div class="md:col-span-2">
+                        <p class="font-semibold">${tx.payeeName}</p>
+                        <p class="text-sm text-gray-500">${tx.description}</p>
+                    </div>
+                    <div>
+                        <p class="text-sm text-gray-500">วันที่จ่าย</p>
+                        <p>${new Date(tx.paymentDate).toLocaleDateString('th-TH')}</p>
+                    </div>
+                    <div>
+                        <p class="text-sm text-gray-500">ยอดจ่าย</p>
+                        <p>${parseFloat(tx.totalAmount).toFixed(2)}</p>
+                    </div>
+                     <div class="text-right">
+                        <p class="text-sm text-gray-500">ยอดหัก ณ ที่จ่าย</p>
+                        <p class="font-bold text-lg text-red-600">${parseFloat(tx.whtAmount).toFixed(2)}</p>
+                    </div>
+                </div>
+                `;
+                container.innerHTML += card;
+            });
+            renderPagination('summaryPagination', page, data.length, 'renderSummary');
+        }
+        
+        // --- Generic Pagination ---
+        function renderPagination(containerId, currentPage, totalItems, callbackFnName) {
+            const container = document.getElementById(containerId);
+            const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE);
+            container.innerHTML = '';
+
+            if (totalPages <= 1) return;
+
+            let paginationHTML = `
+                <div>
+                    <span class="text-sm text-gray-600">
+                        หน้า ${currentPage} จาก ${totalPages}
+                    </span>
+                </div>
+                <div class="flex space-x-2">
+            `;
+            // Previous button
+            paginationHTML += `<button onclick="${callbackFnName}(${currentPage - 1})" ${currentPage === 1 ? 'disabled' : ''} class="px-3 py-1 bg-white border rounded-md disabled:opacity-50 disabled:cursor-not-allowed">&laquo; ก่อนหน้า</button>`;
+            
+            // Next button
+            paginationHTML += `<button onclick="${callbackFnName}(${currentPage + 1})" ${currentPage === totalPages ? 'disabled' : ''} class="px-3 py-1 bg-white border rounded-md disabled:opacity-50 disabled:cursor-not-allowed">ถัดไป &raquo;</button>`;
+            
+            paginationHTML += '</div>';
+            container.innerHTML = paginationHTML;
+        }
+
+
+        // --- Initial Load ---
+        document.addEventListener('DOMContentLoaded', () => {
+            showPage('summaryPage');
+            // Set default date for transaction form
+            document.getElementById('txPaymentDate').valueAsDate = new Date();
+            // Fetch initial data
+            fetchPayees();
+            fetchTransactions();
+        });
+
+    </script>
+</body>
+</html>
