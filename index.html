@@ -214,6 +214,25 @@
         let summaryCurrentPage = 1;
         let transactionCurrentPage = 1;
         const ITEMS_PER_PAGE = 10;
+
+        /**
+         * @description A promise-based wrapper for google.script.run
+         * @param {string} functionName The server-side function to call.
+         * @param {Array<any>} params The arguments to pass to the function.
+         * @returns {Promise<any>} A promise that resolves with the server response.
+         */
+        function callServer(functionName, params = []) {
+            return new Promise((resolve, reject) => {
+                if (typeof google === 'undefined' || !google.script || !google.script.run) {
+                    return reject(new Error("ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้ กรุณาเปิดแอปผ่านลิงก์ที่ถูกต้อง"));
+                }
+                
+                google.script.run
+                    .withSuccessHandler(resolve)
+                    .withFailureHandler(reject)
+                    [functionName](...params);
+            });
+        }
         
         // --- Utility Functions ---
         function showLoading(title = 'กำลังโหลดข้อมูล...') {
@@ -258,13 +277,7 @@
                 }
             });
 
-            // Initial data load for each page
-            if (pageId === 'summaryPage') renderSummary(summaryCurrentPage);
-            if (pageId === 'addPayeePage') renderPayeeTable();
-            if (pageId === 'addTransactionPage') {
-                populatePayeeSelect();
-                renderTransactionTable(transactionCurrentPage);
-            }
+            // Data load logic moved to initial load to prevent multiple fetches
         }
 
         // --- Tax Calculation Logic ---
@@ -277,10 +290,6 @@
             } else if (type === 'นิติบุคคล' && amount >= 500) {
                 const baseAmount = (amount * 100) / 107;
                 const rawWht = baseAmount * 0.01;
-                // Custom rounding rule
-                wht = Math.round(rawWht * 100) / 100; // Standard rounding is simpler and often acceptable.
-                
-                // Detailed rounding as per request:
                 const valTimes1000 = Math.floor(rawWht * 1000);
                 const thirdDecimal = valTimes1000 % 10;
                 let whtRounded = Math.floor(rawWht * 100) / 100;
@@ -294,26 +303,18 @@
         }
 
         // --- Payee Management (Page 2) ---
-        function fetchPayees() {
-            showLoading();
-             // Fix: Check if google.script.run is available before calling it.
-            if (typeof google === 'undefined' || typeof google.script === 'undefined' || typeof google.script.run === 'undefined') {
-                console.error("google.script.run is not available. This app must be run from a Google Apps Script deployment.");
-                showError("ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้ กรุณาเปิดแอปผ่านลิงก์ที่ถูกต้อง");
+        async function fetchPayees() {
+            showLoading('กำลังโหลดข้อมูลผู้ถูกหักภาษี...');
+            try {
+                const data = await callServer('getPayees');
+                allPayees = data.sort((a, b) => a.name.localeCompare(b.name, 'th'));
+                renderPayeeTable();
+                populatePayeeSelect();
+            } catch (error) {
+                showError(error.message || String(error));
+            } finally {
                 Swal.close();
-                return;
             }
-            google.script.run
-                .withSuccessHandler(data => {
-                    allPayees = data.sort((a,b) => a.name.localeCompare(b.name, 'th'));
-                    renderPayeeTable();
-                    populatePayeeSelect();
-                    Swal.close();
-                })
-                .withFailureHandler(err => {
-                    showError(err.message);
-                })
-                .getPayees();
         }
 
         function renderPayeeTable() {
@@ -342,13 +343,8 @@
             });
         }
 
-        document.getElementById('payeeForm').addEventListener('submit', function(e) {
+        document.getElementById('payeeForm').addEventListener('submit', async function(e) {
             e.preventDefault();
-            // Fix: Check for google object
-            if (typeof google === 'undefined' || !google.script || !google.script.run) {
-                showError("ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้ กรุณาตรวจสอบว่าคุณกำลังใช้งานผ่านลิงก์ของเว็บแอปที่ถูกต้อง");
-                return;
-            }
             const editRowIndex = document.getElementById('payeeEditRowIndex').value;
             const payee = {
                 name: document.getElementById('payeeName').value.trim(),
@@ -359,33 +355,26 @@
             
             showLoading(editRowIndex ? 'กำลังแก้ไขข้อมูล...' : 'กำลังเพิ่มข้อมูล...');
 
-            if (editRowIndex) {
-                 payee.rowIndex = parseInt(editRowIndex);
-                 google.script.run
-                    .withSuccessHandler(res => {
-                        if(res.status === 'success'){
-                            showSuccess(res.message);
-                            fetchPayees();
-                            resetPayeeForm();
-                        } else {
-                            showError(res.message);
-                        }
-                    })
-                    .withFailureHandler(err => showError(err.message))
-                    .updatePayee(payee);
-            } else {
-                 google.script.run
-                    .withSuccessHandler(res => {
-                         if(res.status === 'success'){
-                            showSuccess(res.message);
-                            fetchPayees();
-                            this.reset();
-                        } else {
-                            showError(res.message);
-                        }
-                    })
-                    .withFailureHandler(err => showError(err.message))
-                    .addPayee(payee);
+            try {
+                let res;
+                if (editRowIndex) {
+                    payee.rowIndex = parseInt(editRowIndex);
+                    res = await callServer('updatePayee', [payee]);
+                } else {
+                    res = await callServer('addPayee', [payee]);
+                }
+
+                if (res.status === 'success') {
+                    showSuccess(res.message);
+                    resetPayeeForm();
+                    await fetchPayees(); // Refresh data
+                } else {
+                    showError(res.message);
+                }
+            } catch (error) {
+                showError(error.message || String(error));
+            } finally {
+                Swal.close();
             }
         });
 
@@ -420,82 +409,66 @@
                 cancelButtonColor: '#3085d6',
                 confirmButtonText: 'ใช่, ลบเลย!',
                 cancelButtonText: 'ยกเลิก'
-            }).then((result) => {
+            }).then(async (result) => {
                 if (result.isConfirmed) {
-                    // Fix: Check for google object
-                    if (typeof google === 'undefined' || !google.script || !google.script.run) {
-                        showError("ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้ กรุณาตรวจสอบว่าคุณกำลังใช้งานผ่านลิงก์ของเว็บแอปที่ถูกต้อง");
-                        return;
-                    }
                     showLoading('กำลังลบข้อมูล...');
-                    google.script.run
-                        .withSuccessHandler(res => {
-                            if(res.status === 'success'){
-                                showSuccess(res.message);
-                                fetchPayees();
-                            } else {
-                                showError(res.message);
-                            }
-                        })
-                        .withFailureHandler(err => showError(err.message))
-                        .deletePayee(parseInt(rowIndex));
+                    try {
+                        const res = await callServer('deletePayee', [parseInt(rowIndex)]);
+                        if(res.status === 'success'){
+                            showSuccess(res.message);
+                            await fetchPayees(); // Refresh
+                        } else {
+                            showError(res.message);
+                        }
+                    } catch(error) {
+                        showError(error.message || String(error));
+                    } finally {
+                        Swal.close();
+                    }
                 }
             })
         }
 
-        // --- Transaction Management (Page 3) ---
-        function fetchTransactions() {
-            showLoading();
-            // Fix: Check if google.script.run is available before calling it.
-            if (typeof google === 'undefined' || typeof google.script === 'undefined' || typeof google.script.run === 'undefined') {
-                console.error("google.script.run is not available. This app must be run from a Google Apps Script deployment.");
-                showError("ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้ กรุณาเปิดแอปผ่านลิงก์ที่ถูกต้อง");
+        // --- Transaction Management (Page 3 & 1) ---
+        async function fetchTransactions() {
+            showLoading('กำลังโหลดรายการหักภาษี...');
+            try {
+                const data = await callServer('getTransactions');
+                allTransactions = data.sort((a, b) => new Date(b.paymentDate) - new Date(a.paymentDate));
+                applyFiltersAndRender();
+            } catch (error) {
+                showError(error.message || String(error));
+            } finally {
                 Swal.close();
-                return;
             }
-            google.script.run
-                .withSuccessHandler(data => {
-                    allTransactions = data.sort((a,b) => new Date(b.paymentDate) - new Date(a.paymentDate));
-                    applyFiltersAndRender();
-                    Swal.close();
-                })
-                .withFailureHandler(err => {
-                    showError(err.message);
-                })
-                .getTransactions();
         }
         
         function applyFiltersAndRender() {
-            const monthFilterValue = document.getElementById('txMonthFilter').value;
+            const txMonthFilterValue = document.getElementById('txMonthFilter').value;
             const summaryMonthFilterValue = document.getElementById('summaryMonthFilter').value;
 
-            let filterForTxPage = allTransactions;
-            if (monthFilterValue) {
-                filterForTxPage = allTransactions.filter(tx => tx.paymentDate.startsWith(monthFilterValue));
-            }
-
-            let filterForSummaryPage = allTransactions;
-             if (summaryMonthFilterValue) {
-                filterForSummaryPage = allTransactions.filter(tx => tx.paymentDate.startsWith(summaryMonthFilterValue));
-            }
-
-            filteredTransactions = allTransactions; // for general use
+            const filteredForTxPage = txMonthFilterValue 
+                ? allTransactions.filter(tx => tx.paymentDate.startsWith(txMonthFilterValue))
+                : allTransactions;
             
-            renderTransactionTable(1, filterForTxPage); // Reset to page 1
-            renderSummary(1, filterForSummaryPage);
+            const filteredForSummaryPage = summaryMonthFilterValue
+                ? allTransactions.filter(tx => tx.paymentDate.startsWith(summaryMonthFilterValue))
+                : allTransactions;
+            
+            renderTransactionTable(1, filteredForTxPage);
+            renderSummary(1, filteredForSummaryPage);
         }
         
         document.getElementById('txMonthFilter').addEventListener('change', applyFiltersAndRender);
         document.getElementById('summaryMonthFilter').addEventListener('change', applyFiltersAndRender);
 
 
-        function renderTransactionTable(page, data = filteredTransactions) {
+        function renderTransactionTable(page, data = allTransactions) {
             transactionCurrentPage = page;
             const tbody = document.getElementById('transactionTableBody');
             tbody.innerHTML = '';
 
             const startIndex = (page - 1) * ITEMS_PER_PAGE;
-            const endIndex = startIndex + ITEMS_PER_PAGE;
             const paginatedData = data.slice(startIndex, endIndex);
 
             if (paginatedData.length === 0) {
@@ -519,17 +492,15 @@
                 tbody.innerHTML += row;
             });
 
-            renderPagination('transactionPagination', page, data.length, 'renderTransactionTable');
+            renderPagination('transactionPagination', page, data.length, 'renderTransactionTable', data);
         }
         
         function populatePayeeSelect() {
             const select = document.getElementById('txPayeeSelect');
-            const currentValue = select.value;
             select.innerHTML = '<option value="">-- กรุณาเลือก --</option>';
             allPayees.forEach(p => {
                 select.innerHTML += `<option value="${p.taxId}">${p.name}</option>`;
             });
-            select.value = currentValue;
         }
 
         document.getElementById('txPayeeSelect').addEventListener('change', function() {
@@ -563,13 +534,8 @@
              }
         }
         
-        document.getElementById('transactionForm').addEventListener('submit', function(e) {
+        document.getElementById('transactionForm').addEventListener('submit', async function(e) {
             e.preventDefault();
-            // Fix: Check for google object
-            if (typeof google === 'undefined' || !google.script || !google.script.run) {
-                showError("ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้ กรุณาตรวจสอบว่าคุณกำลังใช้งานผ่านลิงก์ของเว็บแอปที่ถูกต้อง");
-                return;
-            }
             const selectedPayee = allPayees.find(p => p.taxId === document.getElementById('txPayeeSelect').value);
             if (!selectedPayee) {
                 showError('กรุณาเลือกผู้ถูกหักภาษี');
@@ -591,19 +557,21 @@
             };
 
             showLoading('กำลังบันทึกรายการ...');
-            google.script.run
-                .withSuccessHandler(res => {
-                    if (res.status === 'success') {
-                        showSuccess(res.message);
-                        fetchTransactions();
-                        this.reset();
-                        updateTransactionCalculation();
-                    } else {
-                        showError(res.message);
-                    }
-                })
-                .withFailureHandler(err => showError(err.message))
-                .addTransaction(transaction);
+            try {
+                const res = await callServer('addTransaction', [transaction]);
+                if (res.status === 'success') {
+                    showSuccess(res.message);
+                    this.reset();
+                    updateTransactionCalculation();
+                    await fetchTransactions(); // Refresh data
+                } else {
+                    showError(res.message);
+                }
+            } catch(error) {
+                 showError(error.message || String(error));
+            } finally {
+                Swal.close();
+            }
         });
 
         function deleteTransaction(rowIndex, name) {
@@ -615,31 +583,28 @@
                 cancelButtonColor: '#3085d6',
                 confirmButtonText: 'ใช่, ลบเลย!',
                 cancelButtonText: 'ยกเลิก'
-            }).then((result) => {
+            }).then(async (result) => {
                 if (result.isConfirmed) {
-                    // Fix: Check for google object
-                    if (typeof google === 'undefined' || !google.script || !google.script.run) {
-                        showError("ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้ กรุณาตรวจสอบว่าคุณกำลังใช้งานผ่านลิงก์ของเว็บแอปที่ถูกต้อง");
-                        return;
-                    }
                     showLoading('กำลังลบรายการ...');
-                    google.script.run
-                        .withSuccessHandler(res => {
-                            if(res.status === 'success'){
-                                showSuccess(res.message);
-                                fetchTransactions();
-                            } else {
-                                showError(res.message);
-                            }
-                        })
-                        .withFailureHandler(err => showError(err.message))
-                        .deleteTransaction(parseInt(rowIndex));
+                    try {
+                        const res = await callServer('deleteTransaction', [parseInt(rowIndex)]);
+                        if(res.status === 'success'){
+                            showSuccess(res.message);
+                            await fetchTransactions();
+                        } else {
+                            showError(res.message);
+                        }
+                    } catch(error) {
+                        showError(error.message || String(error));
+                    } finally {
+                        Swal.close();
+                    }
                 }
             })
         }
 
         // --- Summary Page (Page 1) ---
-        function renderSummary(page, data = filteredTransactions) {
+        function renderSummary(page, data = allTransactions) {
             summaryCurrentPage = page;
             const container = document.getElementById('summaryContainer');
             container.innerHTML = '';
@@ -677,17 +642,21 @@
                 `;
                 container.innerHTML += card;
             });
-            renderPagination('summaryPagination', page, data.length, 'renderSummary');
+            renderPagination('summaryPagination', page, data.length, 'renderSummary', data);
         }
         
         // --- Generic Pagination ---
-        function renderPagination(containerId, currentPage, totalItems, callbackFnName) {
+        function renderPagination(containerId, currentPage, totalItems, callbackFnName, data) {
             const container = document.getElementById(containerId);
             const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE);
             container.innerHTML = '';
 
             if (totalPages <= 1) return;
-
+            
+            // Pass the data through the callback
+            const prevData = JSON.stringify(data).replace(/"/g, '&quot;');
+            const nextData = JSON.stringify(data).replace(/"/g, '&quot;');
+            
             let paginationHTML = `
                 <div>
                     <span class="text-sm text-gray-600">
@@ -697,24 +666,29 @@
                 <div class="flex space-x-2">
             `;
             // Previous button
-            paginationHTML += `<button onclick="${callbackFnName}(${currentPage - 1})" ${currentPage === 1 ? 'disabled' : ''} class="px-3 py-1 bg-white border rounded-md disabled:opacity-50 disabled:cursor-not-allowed">&laquo; ก่อนหน้า</button>`;
+            paginationHTML += `<button onclick="${callbackFnName}(${currentPage - 1}, JSON.parse('${prevData}'))" ${currentPage === 1 ? 'disabled' : ''} class="px-3 py-1 bg-white border rounded-md disabled:opacity-50 disabled:cursor-not-allowed">&laquo; ก่อนหน้า</button>`;
             
             // Next button
-            paginationHTML += `<button onclick="${callbackFnName}(${currentPage + 1})" ${currentPage === totalPages ? 'disabled' : ''} class="px-3 py-1 bg-white border rounded-md disabled:opacity-50 disabled:cursor-not-allowed">ถัดไป &raquo;</button>`;
+            paginationHTML += `<button onclick="${callbackFnName}(${currentPage + 1}, JSON.parse('${nextData}'))" ${currentPage === totalPages ? 'disabled' : ''} class="px-3 py-1 bg-white border rounded-md disabled:opacity-50 disabled:cursor-not-allowed">ถัดไป &raquo;</button>`;
             
             paginationHTML += '</div>';
             container.innerHTML = paginationHTML;
         }
 
-
         // --- Initial Load ---
-        document.addEventListener('DOMContentLoaded', () => {
+        document.addEventListener('DOMContentLoaded', async () => {
             showPage('summaryPage');
-            // Set default date for transaction form
             document.getElementById('txPaymentDate').valueAsDate = new Date();
-            // Fetch initial data
-            fetchPayees();
-            fetchTransactions();
+            
+            // Fetch all data at once initially
+            showLoading('กำลังเริ่มต้นระบบ...');
+            try {
+                await fetchPayees();
+                await fetchTransactions(); // fetchTransactions will close the loading modal
+            } catch (error) {
+                showError(error.message || String(error));
+                Swal.close();
+            }
         });
 
     </script>
