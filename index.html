@@ -1,0 +1,1350 @@
+
+
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบจัดเก็บข้อมูลหนังสือรับรองการหักภาษี ณ ที่จ่าย</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap');
+        body {
+            font-family: 'Prompt', sans-serif;
+            background-color: #fffbeb;
+        }
+        .page {
+            display: none;
+        }
+        .active-page {
+            display: block;
+        }
+        .btn-primary {
+            background-color: #fbbf24;
+            color: #1f2937;
+            transition: all 0.3s;
+        }
+        .btn-primary:hover {
+            background-color: #f59e0b;
+        }
+        .btn-secondary {
+            background-color: #e5e7eb;
+            color: #1f2937;
+            transition: all 0.3s;
+        }
+        .btn-secondary:hover {
+            background-color: #d1d5db;
+        }
+        .btn-danger {
+            background-color: #ef4444;
+            color: white;
+            transition: all 0.3s;
+        }
+        .btn-danger:hover {
+            background-color: #dc2626;
+        }
+        .btn-edit {
+            background-color: #3b82f6;
+            color: white;
+            transition: all 0.3s;
+        }
+        .btn-edit:hover {
+            background-color: #2563eb;
+        }
+        .tag-person {
+            background-color: #10b981;
+        }
+        .tag-company {
+            background-color: #8b5cf6;
+        }
+        .card {
+            transition: all 0.3s;
+        }
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        .loading {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(255, 255, 255, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+        }
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #fbbf24;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="loading" id="loading">
+        <div class="spinner"></div>
+    </div>
+
+    <div class="min-h-screen bg-gradient-to-b from-amber-50 to-amber-100">
+        <nav class="bg-white shadow-md">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="flex justify-between h-16">
+                    <div class="flex">
+                        <div class="flex-shrink-0 flex items-center">
+                            <i class="fas fa-file-invoice-dollar text-amber-500 text-2xl mr-2"></i>
+                            <span class="text-gray-800 text-lg font-semibold">ระบบจัดเก็บข้อมูลหนังสือรับรองการหักภาษี ณ ที่จ่าย</span>
+                        </div>
+                    </div>
+                    <div class="flex items-center">
+                        <div class="hidden md:block">
+                            <div class="ml-4 flex items-center md:ml-6">
+                                <button onclick="showPage('page1')" class="nav-btn px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:bg-amber-100">หน้าหลัก</button>
+                                <button onclick="showPage('page2')" class="nav-btn ml-4 px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:bg-amber-100">ข้อมูลผู้ถูกหักภาษี</button>
+                                <button onclick="showPage('page3')" class="nav-btn ml-4 px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:bg-amber-100">รายการหักภาษี</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Page 1: Summary Table -->
+        <div id="page1" class="page active-page">
+            <div class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+                <div class="bg-white rounded-lg shadow-md p-6">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-2xl font-semibold text-gray-800">รายการหักภาษี ณ ที่จ่ายทั้งหมด</h2>
+                        <div class="flex space-x-2">
+                            <div class="relative">
+                                <input type="month" id="filterMonth" class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-500">
+                            </div>
+                            <button onclick="filterByMonth()" class="btn-primary px-4 py-2 rounded-md">
+                                <i class="fas fa-filter mr-1"></i> กรอง
+                            </button>
+                            <button onclick="loadTaxRecords()" class="btn-secondary px-4 py-2 rounded-md">
+                                <i class="fas fa-sync-alt mr-1"></i> รีเฟรช
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full bg-white rounded-lg overflow-hidden">
+                            <thead class="bg-amber-100">
+                                <tr>
+                                    <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">วันที่</th>
+                                    <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">ชื่อผู้ถูกหักภาษี</th>
+                                    <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">ประเภท</th>
+                                    <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">เลขประจำตัวผู้เสียภาษี</th>
+                                    <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">รายละเอียด</th>
+                                    <th class="px-4 py-3 text-right text-sm font-semibold text-gray-700">จำนวนเงิน</th>
+                                    <th class="px-4 py-3 text-right text-sm font-semibold text-gray-700">ภาษีหัก ณ ที่จ่าย</th>
+                                    <th class="px-4 py-3 text-right text-sm font-semibold text-gray-700">จ่ายจริง</th>
+                                    <th class="px-4 py-3 text-center text-sm font-semibold text-gray-700">จัดการ</th>
+                                </tr>
+                            </thead>
+                            <tbody id="taxRecordsTable" class="divide-y divide-gray-200">
+                                <!-- Tax records will be populated here -->
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <div class="mt-4 flex justify-between items-center">
+                        <div class="text-sm text-gray-600">
+                            แสดง <span id="currentPage">1</span> จาก <span id="totalPages">1</span> หน้า
+                        </div>
+                        <div class="flex space-x-2">
+                            <button id="prevPageBtn" onclick="prevPage()" class="btn-secondary px-3 py-1 rounded-md text-sm disabled:opacity-50">
+                                <i class="fas fa-chevron-left mr-1"></i> ก่อนหน้า
+                            </button>
+                            <button id="nextPageBtn" onclick="nextPage()" class="btn-secondary px-3 py-1 rounded-md text-sm disabled:opacity-50">
+                                ถัดไป <i class="fas fa-chevron-right ml-1"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Tax Record Detail Modal -->
+            <div id="taxDetailModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center hidden z-50">
+                <div class="bg-white rounded-lg shadow-xl p-6 max-w-2xl w-full mx-4">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-xl font-semibold text-gray-800">รายละเอียดการหักภาษี</h3>
+                        <button onclick="closeDetailModal()" class="text-gray-500 hover:text-gray-700">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <div id="taxDetailContent" class="space-y-4">
+                        <!-- Tax record details will be populated here -->
+                    </div>
+                    <div class="mt-6 flex justify-end">
+                        <button onclick="closeDetailModal()" class="btn-secondary px-4 py-2 rounded-md">
+                            ปิด
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Page 2: Taxpayer Information -->
+        <div id="page2" class="page">
+            <div class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+                <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+                    <h2 class="text-2xl font-semibold text-gray-800 mb-6">เพิ่มข้อมูลผู้ถูกหักภาษี</h2>
+                    
+                    <form id="taxpayerForm" class="space-y-4">
+                        <input type="hidden" id="taxpayerId">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label for="name" class="block text-sm font-medium text-gray-700 mb-1">ชื่อ</label>
+                                <input type="text" id="name" name="name" required class="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-500">
+                            </div>
+                            <div>
+                                <label for="type" class="block text-sm font-medium text-gray-700 mb-1">ประเภท</label>
+                                <select id="type" name="type" required class="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-500">
+                                    <option value="">-- เลือกประเภท --</option>
+                                    <option value="บุคคลธรรมดา">บุคคลธรรมดา</option>
+                                    <option value="นิติบุคคล">นิติบุคคล</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label for="taxId" class="block text-sm font-medium text-gray-700 mb-1">เลขประจำตัวผู้เสียภาษี</label>
+                                <input type="text" id="taxId" name="taxId" required class="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-500">
+                            </div>
+                            <div>
+                                <label for="address" class="block text-sm font-medium text-gray-700 mb-1">ที่อยู่</label>
+                                <textarea id="address" name="address" required class="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-500"></textarea>
+                            </div>
+                        </div>
+                        
+                        <div class="flex justify-end space-x-2">
+                            <button type="button" onclick="resetTaxpayerForm()" class="btn-secondary px-4 py-2 rounded-md">
+                                <i class="fas fa-undo mr-1"></i> ล้างฟอร์ม
+                            </button>
+                            <button type="submit" class="btn-primary px-4 py-2 rounded-md">
+                                <i class="fas fa-save mr-1"></i> <span id="taxpayerSubmitText">บันทึก</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+                
+                <div class="bg-white rounded-lg shadow-md p-6">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-2xl font-semibold text-gray-800">รายชื่อผู้ถูกหักภาษี</h2>
+                        <div class="relative">
+                            <input type="text" id="taxpayerSearch" placeholder="ค้นหา..." class="border border-gray-300 rounded-md pl-10 pr-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-500">
+                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                <i class="fas fa-search text-gray-400"></i>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full bg-white rounded-lg overflow-hidden">
+                            <thead class="bg-amber-100">
+                                <tr>
+                                    <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">ชื่อ</th>
+                                    <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">ประเภท</th>
+                                    <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">เลขประจำตัวผู้เสียภาษี</th>
+                                    <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">ที่อยู่</th>
+                                    <th class="px-4 py-3 text-center text-sm font-semibold text-gray-700">จัดการ</th>
+                                </tr>
+                            </thead>
+                            <tbody id="taxpayersTable" class="divide-y divide-gray-200">
+                                <!-- Taxpayers will be populated here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Page 3: Tax Withholding Records -->
+        <div id="page3" class="page">
+            <div class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+                <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+                    <h2 class="text-2xl font-semibold text-gray-800 mb-6">เพิ่มรายการหักภาษี</h2>
+                    
+                    <form id="taxRecordForm" class="space-y-4">
+                        <input type="hidden" id="taxRecordId">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label for="taxpayerSelect" class="block text-sm font-medium text-gray-700 mb-1">ชื่อผู้ถูกหักภาษี</label>
+                                <select id="taxpayerSelect" name="taxpayerSelect" required class="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-500">
+                                    <option value="">-- เลือกผู้ถูกหักภาษี --</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label for="selectedType" class="block text-sm font-medium text-gray-700 mb-1">ประเภท</label>
+                                <input type="text" id="selectedType" readonly class="w-full bg-gray-100 border border-gray-300 rounded-md px-3 py-2">
+                            </div>
+                            <div>
+                                <label for="selectedTaxId" class="block text-sm font-medium text-gray-700 mb-1">เลขประจำตัวผู้เสียภาษี</label>
+                                <input type="text" id="selectedTaxId" readonly class="w-full bg-gray-100 border border-gray-300 rounded-md px-3 py-2">
+                            </div>
+                            <div>
+                                <label for="selectedAddress" class="block text-sm font-medium text-gray-700 mb-1">ที่อยู่</label>
+                                <textarea id="selectedAddress" readonly class="w-full bg-gray-100 border border-gray-300 rounded-md px-3 py-2"></textarea>
+                            </div>
+                            <div>
+                                <label for="paymentDetail" class="block text-sm font-medium text-gray-700 mb-1">รายละเอียดการจ่าย</label>
+                                <input type="text" id="paymentDetail" name="paymentDetail" required class="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-500">
+                            </div>
+                            <div>
+                                <label for="amount" class="block text-sm font-medium text-gray-700 mb-1">จำนวนเงิน (บาท)</label>
+                                <input type="number" id="amount" name="amount" step="0.01" min="0" required class="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-500">
+                            </div>
+                            <div>
+                                <label for="paymentDate" class="block text-sm font-medium text-gray-700 mb-1">วันที่จ่าย</label>
+                                <input type="date" id="paymentDate" name="paymentDate" required class="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-500">
+                            </div>
+                            <div class="grid grid-cols-2 gap-2">
+                                <div>
+                                    <label for="taxAmount" class="block text-sm font-medium text-gray-700 mb-1">ภาษีหัก ณ ที่จ่าย (บาท)</label>
+                                    <input type="text" id="taxAmount" readonly class="w-full bg-gray-100 border border-gray-300 rounded-md px-3 py-2">
+                                </div>
+                                <div>
+                                    <label for="netAmount" class="block text-sm font-medium text-gray-700 mb-1">จ่ายจริง (บาท)</label>
+                                    <input type="text" id="netAmount" readonly class="w-full bg-gray-100 border border-gray-300 rounded-md px-3 py-2">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="flex justify-end space-x-2">
+                            <button type="button" onclick="resetTaxRecordForm()" class="btn-secondary px-4 py-2 rounded-md">
+                                <i class="fas fa-undo mr-1"></i> ล้างฟอร์ม
+                            </button>
+                            <button type="submit" class="btn-primary px-4 py-2 rounded-md">
+                                <i class="fas fa-save mr-1"></i> <span id="taxRecordSubmitText">บันทึก</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+                
+                <div class="bg-white rounded-lg shadow-md p-6">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-2xl font-semibold text-gray-800">รายการหักภาษี</h2>
+                        <div class="flex space-x-2">
+                            <div class="relative">
+                                <input type="month" id="filterMonthPage3" class="border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-amber-500">
+                            </div>
+                            <button onclick="filterByMonthPage3()" class="btn-primary px-4 py-2 rounded-md">
+                                <i class="fas fa-filter mr-1"></i> กรอง
+                            </button>
+                            <button onclick="loadTaxRecordsPage3()" class="btn-secondary px-4 py-2 rounded-md">
+                                <i class="fas fa-sync-alt mr-1"></i> รีเฟรช
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full bg-white rounded-lg overflow-hidden">
+                            <thead class="bg-amber-100">
+                                <tr>
+                                    <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">วันที่</th>
+                                    <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">ชื่อผู้ถูกหักภาษี</th>
+                                    <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">ประเภท</th>
+                                    <th class="px-4 py-3 text-left text-sm font-semibold text-gray-700">รายละเอียด</th>
+                                    <th class="px-4 py-3 text-right text-sm font-semibold text-gray-700">จำนวนเงิน</th>
+                                    <th class="px-4 py-3 text-right text-sm font-semibold text-gray-700">ภาษีหัก ณ ที่จ่าย</th>
+                                    <th class="px-4 py-3 text-right text-sm font-semibold text-gray-700">จ่ายจริง</th>
+                                    <th class="px-4 py-3 text-center text-sm font-semibold text-gray-700">จัดการ</th>
+                                </tr>
+                            </thead>
+                            <tbody id="taxRecordsTablePage3" class="divide-y divide-gray-200">
+                                <!-- Tax records will be populated here -->
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <div class="mt-4 flex justify-between items-center">
+                        <div class="text-sm text-gray-600">
+                            แสดง <span id="currentPagePage3">1</span> จาก <span id="totalPagesPage3">1</span> หน้า
+                        </div>
+                        <div class="flex space-x-2">
+                            <button id="prevPageBtnPage3" onclick="prevPagePage3()" class="btn-secondary px-3 py-1 rounded-md text-sm disabled:opacity-50">
+                                <i class="fas fa-chevron-left mr-1"></i> ก่อนหน้า
+                            </button>
+                            <button id="nextPageBtnPage3" onclick="nextPagePage3()" class="btn-secondary px-3 py-1 rounded-md text-sm disabled:opacity-50">
+                                ถัดไป <i class="fas fa-chevron-right ml-1"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        const API_URL = 'https://script.google.com/macros/s/AKfycbyRKjj4GGdfjWYf-qXGXcc3JaiEXsQdKLswE729gAkRkWvNebBt0ENka1Eif3zw2HH71w/exec';
+        const SHEET_ID = '1cwzGbVUXFEKNXFJh57haEQzE_DiUvO_0daoAvflNVFA';
+        let taxpayers = [];
+        let taxRecords = [];
+        let currentPage = 1;
+        let currentPagePage3 = 1;
+        const recordsPerPage = 10;
+        
+        // Initialize the application
+        document.addEventListener('DOMContentLoaded', function() {
+            // Set today's date as default for payment date
+            document.getElementById('paymentDate').valueAsDate = new Date();
+            
+            // Initialize with demo data since we can't connect to Apps Script directly
+            initializeDemoData();
+            
+            // Set up event listeners
+            document.getElementById('taxpayerForm').addEventListener('submit', saveTaxpayer);
+            document.getElementById('taxRecordForm').addEventListener('submit', saveTaxRecord);
+            document.getElementById('taxpayerSelect').addEventListener('change', updateTaxpayerInfo);
+            document.getElementById('amount').addEventListener('input', calculateTax);
+            document.getElementById('taxpayerSearch').addEventListener('input', filterTaxpayers);
+            
+            // Hide loading spinner
+            setTimeout(() => {
+                document.getElementById('loading').style.display = 'none';
+            }, 1000);
+        });
+        
+        // Initialize with demo data
+        function initializeDemoData() {
+            // Demo taxpayers
+            taxpayers = [
+                {
+                    id: 'tp1',
+                    name: 'บริษัท เอบีซี จำกัด',
+                    type: 'นิติบุคคล',
+                    taxId: '0123456789012',
+                    address: '123 ถนนสุขุมวิท แขวงคลองเตย เขตคลองเตย กรุงเทพฯ 10110'
+                },
+                {
+                    id: 'tp2',
+                    name: 'นายสมชาย ใจดี',
+                    type: 'บุคคลธรรมดา',
+                    taxId: '1234567890123',
+                    address: '456 ถนนพหลโยธิน แขวงจตุจักร เขตจตุจักร กรุงเทพฯ 10900'
+                },
+                {
+                    id: 'tp3',
+                    name: 'บริษัท ไทยเทค จำกัด',
+                    type: 'นิติบุคคล',
+                    taxId: '2345678901234',
+                    address: '789 ถนนสีลม แขวงสีลม เขตบางรัก กรุงเทพฯ 10500'
+                }
+            ];
+            
+            // Demo tax records
+            taxRecords = [
+                {
+                    id: 'tr1',
+                    taxpayerId: 'tp1',
+                    name: 'บริษัท เอบีซี จำกัด',
+                    type: 'นิติบุคคล',
+                    taxId: '0123456789012',
+                    address: '123 ถนนสุขุมวิท แขวงคลองเตย เขตคลองเตย กรุงเทพฯ 10110',
+                    paymentDetail: 'ค่าบริการที่ปรึกษา',
+                    amount: 50000,
+                    paymentDate: '2023-05-15',
+                    taxAmount: 467.29,
+                    netAmount: 49532.71
+                },
+                {
+                    id: 'tr2',
+                    taxpayerId: 'tp2',
+                    name: 'นายสมชาย ใจดี',
+                    type: 'บุคคลธรรมดา',
+                    taxId: '1234567890123',
+                    address: '456 ถนนพหลโยธิน แขวงจตุจักร เขตจตุจักร กรุงเทพฯ 10900',
+                    paymentDetail: 'ค่าจ้างทำเว็บไซต์',
+                    amount: 15000,
+                    paymentDate: '2023-06-20',
+                    taxAmount: 150,
+                    netAmount: 14850
+                },
+                {
+                    id: 'tr3',
+                    taxpayerId: 'tp3',
+                    name: 'บริษัท ไทยเทค จำกัด',
+                    type: 'นิติบุคคล',
+                    taxId: '2345678901234',
+                    address: '789 ถนนสีลม แขวงสีลม เขตบางรัก กรุงเทพฯ 10500',
+                    paymentDetail: 'ค่าเช่าอุปกรณ์',
+                    amount: 30000,
+                    paymentDate: '2023-07-10',
+                    taxAmount: 280.37,
+                    netAmount: 29719.63
+                }
+            ];
+            
+            // Render data
+            renderTaxpayers();
+            updateTaxpayerSelect();
+            renderTaxRecords();
+            renderTaxRecordsPage3();
+        }
+        
+        // Navigation functions
+        function showPage(pageId) {
+            // Update active page
+            document.querySelectorAll('.page').forEach(page => {
+                page.classList.remove('active-page');
+            });
+            document.getElementById(pageId).classList.add('active-page');
+            
+            // Update active nav button
+            document.querySelectorAll('.nav-btn').forEach((btn, index) => {
+                if (index === (pageId === 'page1' ? 0 : pageId === 'page2' ? 1 : 2)) {
+                    btn.classList.add('bg-amber-100');
+                } else {
+                    btn.classList.remove('bg-amber-100');
+                }
+            });
+        }
+        
+        // Show loading spinner
+        function showLoading() {
+            document.getElementById('loading').style.display = 'flex';
+        }
+        
+        // Hide loading spinner
+        function hideLoading() {
+            document.getElementById('loading').style.display = 'none';
+        }
+        
+        // API functions - Modified to work with demo data
+        async function fetchAPI(endpoint, method = 'GET', data = null) {
+            showLoading();
+            
+            // Simulate API delay
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            try {
+                let result = { success: true, data: [] };
+                
+                // Handle different endpoints
+                if (endpoint === 'getTaxpayers') {
+                    result.data = taxpayers;
+                } else if (endpoint === 'getTaxRecords') {
+                    // Filter by month if provided
+                    if (data && data.month) {
+                        const [year, month] = data.month.split('-');
+                        result.data = taxRecords.filter(record => {
+                            const recordDate = new Date(record.paymentDate);
+                            return recordDate.getFullYear() === parseInt(year) && 
+                                   recordDate.getMonth() === parseInt(month) - 1;
+                        });
+                    } else {
+                        result.data = taxRecords;
+                    }
+                } else if (endpoint === 'addTaxpayer') {
+                    const newTaxpayer = {
+                        id: 'tp' + (taxpayers.length + 1),
+                        name: data.name,
+                        type: data.type,
+                        taxId: data.taxId,
+                        address: data.address
+                    };
+                    taxpayers.push(newTaxpayer);
+                } else if (endpoint === 'updateTaxpayer') {
+                    const index = taxpayers.findIndex(t => t.id === data.id);
+                    if (index !== -1) {
+                        taxpayers[index] = {
+                            ...taxpayers[index],
+                            name: data.name,
+                            type: data.type,
+                            taxId: data.taxId,
+                            address: data.address
+                        };
+                    }
+                } else if (endpoint === 'deleteTaxpayer') {
+                    taxpayers = taxpayers.filter(t => t.id !== data.id);
+                    // Also delete related tax records
+                    taxRecords = taxRecords.filter(r => r.taxpayerId !== data.id);
+                } else if (endpoint === 'addTaxRecord') {
+                    const newTaxRecord = {
+                        id: 'tr' + (taxRecords.length + 1),
+                        taxpayerId: data.taxpayerId,
+                        name: data.name,
+                        type: data.type,
+                        taxId: data.taxId,
+                        address: data.address,
+                        paymentDetail: data.paymentDetail,
+                        amount: parseFloat(data.amount),
+                        paymentDate: data.paymentDate,
+                        taxAmount: parseFloat(data.taxAmount),
+                        netAmount: parseFloat(data.netAmount)
+                    };
+                    taxRecords.push(newTaxRecord);
+                } else if (endpoint === 'updateTaxRecord') {
+                    const index = taxRecords.findIndex(r => r.id === data.id);
+                    if (index !== -1) {
+                        taxRecords[index] = {
+                            ...taxRecords[index],
+                            taxpayerId: data.taxpayerId,
+                            name: data.name,
+                            type: data.type,
+                            taxId: data.taxId,
+                            address: data.address,
+                            paymentDetail: data.paymentDetail,
+                            amount: parseFloat(data.amount),
+                            paymentDate: data.paymentDate,
+                            taxAmount: parseFloat(data.taxAmount),
+                            netAmount: parseFloat(data.netAmount)
+                        };
+                    }
+                } else if (endpoint === 'deleteTaxRecord') {
+                    taxRecords = taxRecords.filter(r => r.id !== data.id);
+                }
+                
+                hideLoading();
+                return result;
+            } catch (error) {
+                hideLoading();
+                console.error('API Error:', error);
+                Swal.fire({
+                    icon: 'error',
+                    title: 'เกิดข้อผิดพลาด',
+                    text: 'ไม่สามารถดำเนินการได้',
+                    confirmButtonColor: '#fbbf24'
+                });
+                return { success: false, error: error.message };
+            }
+        }
+        
+        // Taxpayer functions
+        async function loadTaxpayers() {
+            const result = await fetchAPI('getTaxpayers', 'GET');
+            
+            if (result.success) {
+                taxpayers = result.data || [];
+                renderTaxpayers();
+                updateTaxpayerSelect();
+            }
+        }
+        
+        function renderTaxpayers() {
+            const tableBody = document.getElementById('taxpayersTable');
+            tableBody.innerHTML = '';
+            
+            if (taxpayers.length === 0) {
+                tableBody.innerHTML = `
+                    <tr>
+                        <td colspan="5" class="px-4 py-4 text-center text-gray-500">ไม่พบข้อมูลผู้ถูกหักภาษี</td>
+                    </tr>
+                `;
+                return;
+            }
+            
+            taxpayers.forEach(taxpayer => {
+                const row = document.createElement('tr');
+                row.className = 'hover:bg-amber-50';
+                
+                const typeTag = taxpayer.type === 'นิติบุคคล' ? 
+                    `<span class="tag-company text-white text-xs px-2 py-1 rounded-full">นิติบุคคล</span>` : 
+                    `<span class="tag-person text-white text-xs px-2 py-1 rounded-full">บุคคลธรรมดา</span>`;
+                
+                row.innerHTML = `
+                    <td class="px-4 py-3 text-sm text-gray-800">${taxpayer.name}</td>
+                    <td class="px-4 py-3 text-sm text-gray-800">${typeTag}</td>
+                    <td class="px-4 py-3 text-sm text-gray-800">${taxpayer.taxId}</td>
+                    <td class="px-4 py-3 text-sm text-gray-800">${taxpayer.address}</td>
+                    <td class="px-4 py-3 text-sm text-center">
+                        <button onclick="editTaxpayer('${taxpayer.id}')" class="btn-edit px-2 py-1 rounded-md mr-1">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button onclick="deleteTaxpayer('${taxpayer.id}')" class="btn-danger px-2 py-1 rounded-md">
+                            <i class="fas fa-trash-alt"></i>
+                        </button>
+                    </td>
+                `;
+                
+                tableBody.appendChild(row);
+            });
+        }
+        
+        function updateTaxpayerSelect() {
+            const select = document.getElementById('taxpayerSelect');
+            select.innerHTML = '<option value="">-- เลือกผู้ถูกหักภาษี --</option>';
+            
+            taxpayers.forEach(taxpayer => {
+                const option = document.createElement('option');
+                option.value = taxpayer.id;
+                option.textContent = taxpayer.name;
+                select.appendChild(option);
+            });
+        }
+        
+        function updateTaxpayerInfo() {
+            const taxpayerId = document.getElementById('taxpayerSelect').value;
+            const taxpayer = taxpayers.find(t => t.id === taxpayerId);
+            
+            if (taxpayer) {
+                document.getElementById('selectedType').value = taxpayer.type;
+                document.getElementById('selectedTaxId').value = taxpayer.taxId;
+                document.getElementById('selectedAddress').value = taxpayer.address;
+                calculateTax();
+            } else {
+                document.getElementById('selectedType').value = '';
+                document.getElementById('selectedTaxId').value = '';
+                document.getElementById('selectedAddress').value = '';
+                document.getElementById('taxAmount').value = '';
+                document.getElementById('netAmount').value = '';
+            }
+        }
+        
+        async function saveTaxpayer(event) {
+            event.preventDefault();
+            
+            const taxpayerId = document.getElementById('taxpayerId').value;
+            const name = document.getElementById('name').value;
+            const type = document.getElementById('type').value;
+            const taxId = document.getElementById('taxId').value;
+            const address = document.getElementById('address').value;
+            
+            const data = {
+                id: taxpayerId,
+                name,
+                type,
+                taxId,
+                address
+            };
+            
+            const action = taxpayerId ? 'updateTaxpayer' : 'addTaxpayer';
+            const result = await fetchAPI(action, 'POST', data);
+            
+            if (result.success) {
+                Swal.fire({
+                    icon: 'success',
+                    title: 'สำเร็จ',
+                    text: taxpayerId ? 'อัปเดตข้อมูลผู้ถูกหักภาษีเรียบร้อยแล้ว' : 'เพิ่มข้อมูลผู้ถูกหักภาษีเรียบร้อยแล้ว',
+                    confirmButtonColor: '#fbbf24'
+                });
+                
+                resetTaxpayerForm();
+                loadTaxpayers();
+            } else {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'เกิดข้อผิดพลาด',
+                    text: result.error || 'ไม่สามารถบันทึกข้อมูลได้',
+                    confirmButtonColor: '#fbbf24'
+                });
+            }
+        }
+        
+        function editTaxpayer(id) {
+            const taxpayer = taxpayers.find(t => t.id === id);
+            
+            if (taxpayer) {
+                document.getElementById('taxpayerId').value = taxpayer.id;
+                document.getElementById('name').value = taxpayer.name;
+                document.getElementById('type').value = taxpayer.type;
+                document.getElementById('taxId').value = taxpayer.taxId;
+                document.getElementById('address').value = taxpayer.address;
+                
+                document.getElementById('taxpayerSubmitText').textContent = 'อัปเดต';
+                
+                // Scroll to form
+                document.querySelector('#page2 .bg-white').scrollIntoView({ behavior: 'smooth' });
+            }
+        }
+        
+        async function deleteTaxpayer(id) {
+            const result = await Swal.fire({
+                title: 'ยืนยันการลบ',
+                text: 'คุณต้องการลบข้อมูลผู้ถูกหักภาษีนี้หรือไม่?',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#ef4444',
+                cancelButtonColor: '#d1d5db',
+                confirmButtonText: 'ลบ',
+                cancelButtonText: 'ยกเลิก'
+            });
+            
+            if (result.isConfirmed) {
+                const apiResult = await fetchAPI('deleteTaxpayer', 'POST', { id });
+                
+                if (apiResult.success) {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'สำเร็จ',
+                        text: 'ลบข้อมูลผู้ถูกหักภาษีเรียบร้อยแล้ว',
+                        confirmButtonColor: '#fbbf24'
+                    });
+                    
+                    loadTaxpayers();
+                } else {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'เกิดข้อผิดพลาด',
+                        text: apiResult.error || 'ไม่สามารถลบข้อมูลได้',
+                        confirmButtonColor: '#fbbf24'
+                    });
+                }
+            }
+        }
+        
+        function resetTaxpayerForm() {
+            document.getElementById('taxpayerId').value = '';
+            document.getElementById('taxpayerForm').reset();
+            document.getElementById('taxpayerSubmitText').textContent = 'บันทึก';
+        }
+        
+        function filterTaxpayers() {
+            const searchTerm = document.getElementById('taxpayerSearch').value.toLowerCase();
+            
+            if (!searchTerm) {
+                renderTaxpayers();
+                return;
+            }
+            
+            const filteredTaxpayers = taxpayers.filter(taxpayer => 
+                taxpayer.name.toLowerCase().includes(searchTerm) || 
+                taxpayer.taxId.toLowerCase().includes(searchTerm)
+            );
+            
+            const tableBody = document.getElementById('taxpayersTable');
+            tableBody.innerHTML = '';
+            
+            if (filteredTaxpayers.length === 0) {
+                tableBody.innerHTML = `
+                    <tr>
+                        <td colspan="5" class="px-4 py-4 text-center text-gray-500">ไม่พบข้อมูลที่ตรงกับการค้นหา</td>
+                    </tr>
+                `;
+                return;
+            }
+            
+            filteredTaxpayers.forEach(taxpayer => {
+                const row = document.createElement('tr');
+                row.className = 'hover:bg-amber-50';
+                
+                const typeTag = taxpayer.type === 'นิติบุคคล' ? 
+                    `<span class="tag-company text-white text-xs px-2 py-1 rounded-full">นิติบุคคล</span>` : 
+                    `<span class="tag-person text-white text-xs px-2 py-1 rounded-full">บุคคลธรรมดา</span>`;
+                
+                row.innerHTML = `
+                    <td class="px-4 py-3 text-sm text-gray-800">${taxpayer.name}</td>
+                    <td class="px-4 py-3 text-sm text-gray-800">${typeTag}</td>
+                    <td class="px-4 py-3 text-sm text-gray-800">${taxpayer.taxId}</td>
+                    <td class="px-4 py-3 text-sm text-gray-800">${taxpayer.address}</td>
+                    <td class="px-4 py-3 text-sm text-center">
+                        <button onclick="editTaxpayer('${taxpayer.id}')" class="btn-edit px-2 py-1 rounded-md mr-1">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button onclick="deleteTaxpayer('${taxpayer.id}')" class="btn-danger px-2 py-1 rounded-md">
+                            <i class="fas fa-trash-alt"></i>
+                        </button>
+                    </td>
+                `;
+                
+                tableBody.appendChild(row);
+            });
+        }
+        
+        // Tax record functions
+        async function loadTaxRecords(month = null) {
+            const params = {};
+            if (month) {
+                params.month = month;
+            }
+            
+            const result = await fetchAPI('getTaxRecords', 'GET', params);
+            
+            if (result.success) {
+                taxRecords = result.data || [];
+                currentPage = 1;
+                renderTaxRecords();
+            }
+        }
+        
+        async function loadTaxRecordsPage3(month = null) {
+            const params = {};
+            if (month) {
+                params.month = month;
+            }
+            
+            const result = await fetchAPI('getTaxRecords', 'GET', params);
+            
+            if (result.success) {
+                taxRecords = result.data || [];
+                currentPagePage3 = 1;
+                renderTaxRecordsPage3();
+            }
+        }
+        
+        function renderTaxRecords() {
+            const tableBody = document.getElementById('taxRecordsTable');
+            tableBody.innerHTML = '';
+            
+            if (taxRecords.length === 0) {
+                tableBody.innerHTML = `
+                    <tr>
+                        <td colspan="9" class="px-4 py-4 text-center text-gray-500">ไม่พบข้อมูลรายการหักภาษี</td>
+                    </tr>
+                `;
+                
+                document.getElementById('currentPage').textContent = '0';
+                document.getElementById('totalPages').textContent = '0';
+                document.getElementById('prevPageBtn').disabled = true;
+                document.getElementById('nextPageBtn').disabled = true;
+                
+                return;
+            }
+            
+            const totalPages = Math.ceil(taxRecords.length / recordsPerPage);
+            const startIndex = (currentPage - 1) * recordsPerPage;
+            const endIndex = Math.min(startIndex + recordsPerPage, taxRecords.length);
+            const recordsToShow = taxRecords.slice(startIndex, endIndex);
+            
+            recordsToShow.forEach(record => {
+                const row = document.createElement('tr');
+                row.className = 'hover:bg-amber-50';
+                
+                const typeTag = record.type === 'นิติบุคคล' ? 
+                    `<span class="tag-company text-white text-xs px-2 py-1 rounded-full">นิติบุคคล</span>` : 
+                    `<span class="tag-person text-white text-xs px-2 py-1 rounded-full">บุคคลธรรมดา</span>`;
+                
+                const formattedDate = new Date(record.paymentDate).toLocaleDateString('th-TH', {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric'
+                });
+                
+                const formattedAmount = parseFloat(record.amount).toLocaleString('th-TH', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2
+                });
+                
+                const formattedTaxAmount = parseFloat(record.taxAmount).toLocaleString('th-TH', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2
+                });
+                
+                const formattedNetAmount = parseFloat(record.netAmount).toLocaleString('th-TH', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2
+                });
+                
+                row.innerHTML = `
+                    <td class="px-4 py-3 text-sm text-gray-800">${formattedDate}</td>
+                    <td class="px-4 py-3 text-sm text-gray-800">${record.name}</td>
+                    <td class="px-4 py-3 text-sm text-gray-800">${typeTag}</td>
+                    <td class="px-4 py-3 text-sm text-gray-800">${record.taxId}</td>
+                    <td class="px-4 py-3 text-sm text-gray-800">${record.paymentDetail}</td>
+                    <td class="px-4 py-3 text-sm text-gray-800 text-right">${formattedAmount}</td>
+                    <td class="px-4 py-3 text-sm text-gray-800 text-right">${formattedTaxAmount}</td>
+                    <td class="px-4 py-3 text-sm text-gray-800 text-right">${formattedNetAmount}</td>
+                    <td class="px-4 py-3 text-sm text-center">
+                        <button onclick="viewTaxRecord('${record.id}')" class="bg-amber-500 text-white px-2 py-1 rounded-md mr-1">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                        <button onclick="editTaxRecord('${record.id}')" class="btn-edit px-2 py-1 rounded-md mr-1">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button onclick="deleteTaxRecord('${record.id}')" class="btn-danger px-2 py-1 rounded-md">
+                            <i class="fas fa-trash-alt"></i>
+                        </button>
+                    </td>
+                `;
+                
+                tableBody.appendChild(row);
+            });
+            
+            document.getElementById('currentPage').textContent = currentPage;
+            document.getElementById('totalPages').textContent = totalPages;
+            document.getElementById('prevPageBtn').disabled = currentPage === 1;
+            document.getElementById('nextPageBtn').disabled = currentPage === totalPages;
+        }
+        
+        function renderTaxRecordsPage3() {
+            const tableBody = document.getElementById('taxRecordsTablePage3');
+            tableBody.innerHTML = '';
+            
+            if (taxRecords.length === 0) {
+                tableBody.innerHTML = `
+                    <tr>
+                        <td colspan="8" class="px-4 py-4 text-center text-gray-500">ไม่พบข้อมูลรายการหักภาษี</td>
+                    </tr>
+                `;
+                
+                document.getElementById('currentPagePage3').textContent = '0';
+                document.getElementById('totalPagesPage3').textContent = '0';
+                document.getElementById('prevPageBtnPage3').disabled = true;
+                document.getElementById('nextPageBtnPage3').disabled = true;
+                
+                return;
+            }
+            
+            const totalPages = Math.ceil(taxRecords.length / recordsPerPage);
+            const startIndex = (currentPagePage3 - 1) * recordsPerPage;
+            const endIndex = Math.min(startIndex + recordsPerPage, taxRecords.length);
+            const recordsToShow = taxRecords.slice(startIndex, endIndex);
+            
+            recordsToShow.forEach(record => {
+                const row = document.createElement('tr');
+                row.className = 'hover:bg-amber-50';
+                
+                const typeTag = record.type === 'นิติบุคคล' ? 
+                    `<span class="tag-company text-white text-xs px-2 py-1 rounded-full">นิติบุคคล</span>` : 
+                    `<span class="tag-person text-white text-xs px-2 py-1 rounded-full">บุคคลธรรมดา</span>`;
+                
+                const formattedDate = new Date(record.paymentDate).toLocaleDateString('th-TH', {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric'
+                });
+                
+                const formattedAmount = parseFloat(record.amount).toLocaleString('th-TH', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2
+                });
+                
+                const formattedTaxAmount = parseFloat(record.taxAmount).toLocaleString('th-TH', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2
+                });
+                
+                const formattedNetAmount = parseFloat(record.netAmount).toLocaleString('th-TH', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2
+                });
+                
+                row.innerHTML = `
+                    <td class="px-4 py-3 text-sm text-gray-800">${formattedDate}</td>
+                    <td class="px-4 py-3 text-sm text-gray-800">${record.name}</td>
+                    <td class="px-4 py-3 text-sm text-gray-800">${typeTag}</td>
+                    <td class="px-4 py-3 text-sm text-gray-800">${record.paymentDetail}</td>
+                    <td class="px-4 py-3 text-sm text-gray-800 text-right">${formattedAmount}</td>
+                    <td class="px-4 py-3 text-sm text-gray-800 text-right">${formattedTaxAmount}</td>
+                    <td class="px-4 py-3 text-sm text-gray-800 text-right">${formattedNetAmount}</td>
+                    <td class="px-4 py-3 text-sm text-center">
+                        <button onclick="editTaxRecord('${record.id}')" class="btn-edit px-2 py-1 rounded-md mr-1">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button onclick="deleteTaxRecord('${record.id}')" class="btn-danger px-2 py-1 rounded-md">
+                            <i class="fas fa-trash-alt"></i>
+                        </button>
+                    </td>
+                `;
+                
+                tableBody.appendChild(row);
+            });
+            
+            document.getElementById('currentPagePage3').textContent = currentPagePage3;
+            document.getElementById('totalPagesPage3').textContent = totalPages;
+            document.getElementById('prevPageBtnPage3').disabled = currentPagePage3 === 1;
+            document.getElementById('nextPageBtnPage3').disabled = currentPagePage3 === totalPages;
+        }
+        
+        function calculateTax() {
+            const amount = parseFloat(document.getElementById('amount').value) || 0;
+            const type = document.getElementById('selectedType').value;
+            let taxAmount = 0;
+            
+            if (type === 'บุคคลธรรมดา') {
+                // บุคคลธรรมดาจะหัก 1% ตั้งแต่ 10000 บาทขึ้นไป
+                if (amount >= 10000) {
+                    taxAmount = amount * 0.01;
+                }
+            } else if (type === 'นิติบุคคล') {
+                // นิติบุคคลจะหักตั้งแต่ 500 บาทขึ้นไป โดยคำนวณยอดหักคือ จำนวนเงิน*100/107*1%
+                if (amount >= 500) {
+                    taxAmount = (amount * 100 / 107) * 0.01;
+                }
+            }
+            
+            // ใช้ทศนิยม 2 ตำแหน่ง ถ้าตำแหน่งที่สามเป็นเลข 0-4 ให้ปัดทิ้ง 5-9 ให้ปัดตำแหน่งที่สองขึ้น
+            taxAmount = Math.round(taxAmount * 100) / 100;
+            
+            const netAmount = amount - taxAmount;
+            
+            document.getElementById('taxAmount').value = taxAmount.toFixed(2);
+            document.getElementById('netAmount').value = netAmount.toFixed(2);
+        }
+        
+        async function saveTaxRecord(event) {
+            event.preventDefault();
+            
+            const taxRecordId = document.getElementById('taxRecordId').value;
+            const taxpayerId = document.getElementById('taxpayerSelect').value;
+            const taxpayer = taxpayers.find(t => t.id === taxpayerId);
+            
+            if (!taxpayer) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'ข้อมูลไม่ครบถ้วน',
+                    text: 'กรุณาเลือกผู้ถูกหักภาษี',
+                    confirmButtonColor: '#fbbf24'
+                });
+                return;
+            }
+            
+            const paymentDetail = document.getElementById('paymentDetail').value;
+            const amount = parseFloat(document.getElementById('amount').value);
+            const paymentDate = document.getElementById('paymentDate').value;
+            const taxAmount = parseFloat(document.getElementById('taxAmount').value);
+            const netAmount = parseFloat(document.getElementById('netAmount').value);
+            
+            const data = {
+                id: taxRecordId,
+                taxpayerId,
+                name: taxpayer.name,
+                type: taxpayer.type,
+                taxId: taxpayer.taxId,
+                address: taxpayer.address,
+                paymentDetail,
+                amount,
+                paymentDate,
+                taxAmount,
+                netAmount
+            };
+            
+            const action = taxRecordId ? 'updateTaxRecord' : 'addTaxRecord';
+            const result = await fetchAPI(action, 'POST', data);
+            
+            if (result.success) {
+                Swal.fire({
+                    icon: 'success',
+                    title: 'สำเร็จ',
+                    text: taxRecordId ? 'อัปเดตรายการหักภาษีเรียบร้อยแล้ว' : 'เพิ่มรายการหักภาษีเรียบร้อยแล้ว',
+                    confirmButtonColor: '#fbbf24'
+                });
+                
+                resetTaxRecordForm();
+                loadTaxRecords();
+                loadTaxRecordsPage3();
+            } else {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'เกิดข้อผิดพลาด',
+                    text: result.error || 'ไม่สามารถบันทึกข้อมูลได้',
+                    confirmButtonColor: '#fbbf24'
+                });
+            }
+        }
+        
+        function viewTaxRecord(id) {
+            const record = taxRecords.find(r => r.id === id);
+            
+            if (record) {
+                const formattedDate = new Date(record.paymentDate).toLocaleDateString('th-TH', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric'
+                });
+                
+                const formattedAmount = parseFloat(record.amount).toLocaleString('th-TH', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2
+                });
+                
+                const formattedTaxAmount = parseFloat(record.taxAmount).toLocaleString('th-TH', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2
+                });
+                
+                const formattedNetAmount = parseFloat(record.netAmount).toLocaleString('th-TH', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2
+                });
+                
+                const typeTag = record.type === 'นิติบุคคล' ? 
+                    `<span class="tag-company text-white text-xs px-2 py-1 rounded-full">นิติบุคคล</span>` : 
+                    `<span class="tag-person text-white text-xs px-2 py-1 rounded-full">บุคคลธรรมดา</span>`;
+                
+                document.getElementById('taxDetailContent').innerHTML = `
+                    <div class="bg-amber-50 p-4 rounded-lg">
+                        <div class="flex justify-between items-center mb-4">
+                            <h4 class="text-lg font-semibold text-gray-800">ข้อมูลผู้ถูกหักภาษี</h4>
+                            <div>${typeTag}</div>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <p class="text-sm text-gray-600">ชื่อ</p>
+                                <p class="text-base text-gray-800">${record.name}</p>
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-600">เลขประจำตัวผู้เสียภาษี</p>
+                                <p class="text-base text-gray-800">${record.taxId}</p>
+                            </div>
+                            <div class="md:col-span-2">
+                                <p class="text-sm text-gray-600">ที่อยู่</p>
+                                <p class="text-base text-gray-800">${record.address}</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-white p-4 rounded-lg border border-gray-200">
+                        <h4 class="text-lg font-semibold text-gray-800 mb-4">รายละเอียดการหักภาษี</h4>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <p class="text-sm text-gray-600">วันที่จ่าย</p>
+                                <p class="text-base text-gray-800">${formattedDate}</p>
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-600">รายละเอียดการจ่าย</p>
+                                <p class="text-base text-gray-800">${record.paymentDetail}</p>
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-600">จำนวนเงิน</p>
+                                <p class="text-lg font-semibold text-gray-800">${formattedAmount} บาท</p>
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-600">ภาษีหัก ณ ที่จ่าย (1%)</p>
+                                <p class="text-lg font-semibold text-red-600">${formattedTaxAmount} บาท</p>
+                            </div>
+                            <div class="md:col-span-2">
+                                <p class="text-sm text-gray-600">จ่ายจริง</p>
+                                <p class="text-xl font-bold text-green-600">${formattedNetAmount} บาท</p>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                document.getElementById('taxDetailModal').classList.remove('hidden');
+            }
+        }
+        
+        function closeDetailModal() {
+            document.getElementById('taxDetailModal').classList.add('hidden');
+        }
+        
+        function editTaxRecord(id) {
+            const record = taxRecords.find(r => r.id === id);
+            
+            if (record) {
+                document.getElementById('taxRecordId').value = record.id;
+                document.getElementById('taxpayerSelect').value = record.taxpayerId;
+                document.getElementById('selectedType').value = record.type;
+                document.getElementById('selectedTaxId').value = record.taxId;
+                document.getElementById('selectedAddress').value = record.address;
+                document.getElementById('paymentDetail').value = record.paymentDetail;
+                document.getElementById('amount').value = record.amount;
+                document.getElementById('paymentDate').value = record.paymentDate;
+                document.getElementById('taxAmount').value = record.taxAmount;
+                document.getElementById('netAmount').value = record.netAmount;
+                
+                document.getElementById('taxRecordSubmitText').textContent = 'อัปเดต';
+                
+                // Switch to page 3 and scroll to form
+                showPage('page3');
+                document.querySelector('#page3 .bg-white').scrollIntoView({ behavior: 'smooth' });
+            }
+        }
+        
+        async function deleteTaxRecord(id) {
+            const result = await Swal.fire({
+                title: 'ยืนยันการลบ',
+                text: 'คุณต้องการลบรายการหักภาษีนี้หรือไม่?',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#ef4444',
+                cancelButtonColor: '#d1d5db',
+                confirmButtonText: 'ลบ',
+                cancelButtonText: 'ยกเลิก'
+            });
+            
+            if (result.isConfirmed) {
+                const apiResult = await fetchAPI('deleteTaxRecord', 'POST', { id });
+                
+                if (apiResult.success) {
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'สำเร็จ',
+                        text: 'ลบรายการหักภาษีเรียบร้อยแล้ว',
+                        confirmButtonColor: '#fbbf24'
+                    });
+                    
+                    loadTaxRecords();
+                    loadTaxRecordsPage3();
+                } else {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'เกิดข้อผิดพลาด',
+                        text: apiResult.error || 'ไม่สามารถลบข้อมูลได้',
+                        confirmButtonColor: '#fbbf24'
+                    });
+                }
+            }
+        }
+        
+        function resetTaxRecordForm() {
+            document.getElementById('taxRecordId').value = '';
+            document.getElementById('taxRecordForm').reset();
+            document.getElementById('selectedType').value = '';
+            document.getElementById('selectedTaxId').value = '';
+            document.getElementById('selectedAddress').value = '';
+            document.getElementById('taxAmount').value = '';
+            document.getElementById('netAmount').value = '';
+            document.getElementById('taxRecordSubmitText').textContent = 'บันทึก';
+            
+            // Set today's date as default for payment date
+            document.getElementById('paymentDate').valueAsDate = new Date();
+        }
+        
+        // Pagination functions
+        function nextPage() {
+            const totalPages = Math.ceil(taxRecords.length / recordsPerPage);
+            if (currentPage < totalPages) {
+                currentPage++;
+                renderTaxRecords();
+            }
+        }
+        
+        function prevPage() {
+            if (currentPage > 1) {
+                currentPage--;
+                renderTaxRecords();
+            }
+        }
+        
+        function nextPagePage3() {
+            const totalPages = Math.ceil(taxRecords.length / recordsPerPage);
+            if (currentPagePage3 < totalPages) {
+                currentPagePage3++;
+                renderTaxRecordsPage3();
+            }
+        }
+        
+        function prevPagePage3() {
+            if (currentPagePage3 > 1) {
+                currentPagePage3--;
+                renderTaxRecordsPage3();
+            }
+        }
+        
+        // Filter functions
+        function filterByMonth() {
+            const monthValue = document.getElementById('filterMonth').value;
+            
+            if (monthValue) {
+                loadTaxRecords(monthValue);
+            } else {
+                loadTaxRecords();
+            }
+        }
+        
+        function filterByMonthPage3() {
+            const monthValue = document.getElementById('filterMonthPage3').value;
+            
+            if (monthValue) {
+                loadTaxRecordsPage3(monthValue);
+            } else {
+                loadTaxRecordsPage3();
+            }
+        }
+    </script>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9579d667c35c7334',t:'MTc1MTI0NjM4OC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
